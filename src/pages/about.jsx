@@ -9,7 +9,7 @@ const policies = [
   },
   {
     title: "National Health Mission (NHM)",
-    descriptionss:
+    description:
       "NHM focuses on strengthening health systems, improving maternal and child health, and controlling communicable and non-communicable diseases across India.",
     link: "https://nhm.gov.in/",
   },
