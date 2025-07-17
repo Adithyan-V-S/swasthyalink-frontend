@@ -5,13 +5,13 @@ const Home = () => {
     <main className="flex flex-col items-center justify-center min-h-[80vh] bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
       <section className="text-center max-w-2xl">
         <h1 className="text-4xl md:text-5xl font-extrabold text-indigo-700 mb-4 drop-shadow-lg">
-          Welcome to Swasthyakink
+          Welcome to Swasthyalink
         </h1>
         <p className="text-lg md:text-xl text-gray-700 mb-8">
           Your trusted partner in digital healthcare. Manage your health, appointments, and records with ease and security.
         </p>
         <a
-          href="#register"
+          href="register"
           className="inline-block bg-indigo-600 text-white px-8 py-3 rounded-full text-lg font-semibold shadow-lg hover:bg-yellow-400 hover:text-indigo-800 transition-colors duration-200"
         >
           Get Started

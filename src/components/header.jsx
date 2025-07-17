@@ -6,7 +6,7 @@ const Header = () => {
     <header className="bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg sticky top-0 z-50">
       <nav className="container mx-auto flex flex-wrap items-center justify-between py-4 px-6">
         <div className="flex items-center space-x-3">
-          <span className="text-white text-2xl font-bold tracking-wide">Swasthyakink</span>
+          <span className="text-white text-2xl font-bold tracking-wide">Swasthyalink</span>
         </div>
         <ul className="flex flex-wrap gap-4 md:gap-8 text-white font-medium text-lg">
           <li>
@@ -19,7 +19,7 @@ const Header = () => {
             <Link to="/patientdashboard" className="hover:text-yellow-300 transition-colors duration-200">Patient Dashboard</Link>
           </li>
           <li>
-            <Link to="/setting" className="hover:text-yellow-300 transition-colors duration-200">Setting</Link>
+            <Link to="/settings" className="hover:text-yellow-300 transition-colors duration-200">Setting</Link>
           </li>
           <li>
             <Link to="/login" className="bg-white text-indigo-600 px-4 py-1 rounded-full shadow hover:bg-yellow-300 hover:text-indigo-800 transition-colors duration-200">Login</Link>
