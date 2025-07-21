@@ -1,124 +1,22 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, googleProvider, db } from "../firebaseConfig";
-import { signInWithPopup, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { signInWithPopup, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
-// Mini Snake game component
-function SnakeGame() {
-  const gridSize = 10;
-  const initialSnake = [
-    { x: 4, y: 5 },
-    { x: 3, y: 5 },
-  ];
-  const [snake, setSnake] = useState(initialSnake);
-  const [direction, setDirection] = useState({ x: 1, y: 0 });
-  const [food, setFood] = useState({ x: 7, y: 5 });
-  const [score, setScore] = useState(0);
-  const [gameOver, setGameOver] = useState(false);
-  const [gameKey, setGameKey] = useState(0);
-
-  // Move snake
-  React.useEffect(() => {
-    if (gameOver) return;
-    const handle = setInterval(() => {
-      setSnake((prev) => {
-        const newHead = {
-          x: prev[0].x + direction.x,
-          y: prev[0].y + direction.y,
-        };
-        // Check collision
-        if (
-          newHead.x < 0 ||
-          newHead.x >= gridSize ||
-          newHead.y < 0 ||
-          newHead.y >= gridSize ||
-          prev.some((s) => s.x === newHead.x && s.y === newHead.y)
-        ) {
-          setGameOver(true);
-          return prev;
-        }
-        let newSnake = [newHead, ...prev];
-        // Eat food
-        if (newHead.x === food.x && newHead.y === food.y) {
-          setScore((s) => s + 1);
-          let newFood;
-          do {
-            newFood = {
-              x: Math.floor(Math.random() * gridSize),
-              y: Math.floor(Math.random() * gridSize),
-            };
-          } while (newSnake.some((s) => s.x === newFood.x && s.y === newFood.y));
-          setFood(newFood);
-        } else {
-          newSnake.pop();
-        }
-        return newSnake;
-      });
-    }, 180);
-    return () => clearInterval(handle);
-  }, [direction, food, gameOver, gameKey]);
-
-  // Keyboard controls
-  React.useEffect(() => {
-    const handleKey = (e) => {
-      if (gameOver) return;
-      if (e.key === "ArrowUp" && direction.y !== 1) setDirection({ x: 0, y: -1 });
-      if (e.key === "ArrowDown" && direction.y !== -1) setDirection({ x: 0, y: 1 });
-      if (e.key === "ArrowLeft" && direction.x !== 1) setDirection({ x: -1, y: 0 });
-      if (e.key === "ArrowRight" && direction.x !== -1) setDirection({ x: 1, y: 0 });
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [direction, gameOver]);
-
-  const handleRestart = () => {
-    setSnake(initialSnake);
-    setDirection({ x: 1, y: 0 });
-    setFood({ x: 7, y: 5 });
-    setScore(0);
-    setGameOver(false);
-    setGameKey((k) => k + 1);
-  };
-
+function EmailVerificationModal({ open, onResend, onCheck, onClose, email }) {
+  if (!open) return null;
   return (
-    <div className="relative w-64 h-64 bg-white/80 rounded-xl shadow-lg mb-6 flex flex-col items-center justify-center overflow-hidden border-2 border-green-200">
-      <div className="absolute top-2 left-2 text-xs text-green-600 font-semibold">Snake Game</div>
-      <div className="absolute top-2 right-2 text-xs text-gray-400">Score: {score}</div>
-      <div className="grid grid-cols-10 grid-rows-10 gap-0.5 mt-6">
-        {[...Array(gridSize * gridSize)].map((_, i) => {
-          const x = i % gridSize;
-          const y = Math.floor(i / gridSize);
-          const isSnake = snake.some((s) => s.x === x && s.y === y);
-          const isHead = snake[0].x === x && snake[0].y === y;
-          const isFood = food.x === x && food.y === y;
-          return (
-            <div
-              key={i}
-              className={`w-5 h-5 rounded ${
-                isHead
-                  ? "bg-green-600"
-                  : isSnake
-                  ? "bg-green-300"
-                  : isFood
-                  ? "bg-yellow-400 animate-pulse"
-                  : "bg-white/0"
-              }`}
-            />
-          );
-        })}
-      </div>
-      {gameOver && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80">
-          <div className="text-lg font-bold text-green-700 mb-2">Game Over!</div>
-          <button
-            onClick={handleRestart}
-            className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
-          >
-            Play Again
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full text-center">
+        <h2 className="text-xl font-bold mb-2 text-indigo-700">Confirm your email</h2>
+        <p className="mb-4 text-gray-700">A confirmation link has been sent to <span className="font-semibold">{email}</span>.<br/>Please check your inbox and click the link to verify your account.</p>
+        <div className="flex flex-col gap-2">
+          <button onClick={onResend} className="bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 font-semibold">Resend Email</button>
+          <button onClick={onCheck} className="bg-yellow-400 text-indigo-800 py-2 rounded hover:bg-yellow-500 font-semibold">I've Verified</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-red-500 mt-2">Close</button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -128,6 +26,9 @@ const Register = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [role, setRole] = useState("patient");
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
+  const [showVerification, setShowVerification] = useState(false);
+  const [registeredUser, setRegisteredUser] = useState(null);
+  const [verifying, setVerifying] = useState(false);
   const navigate = useNavigate();
 
   const handleGoogleSignUp = async () => {
@@ -169,14 +70,45 @@ const Register = () => {
         email: form.email,
         role
       });
-      navigate(role === "doctor" ? "/doctordashboard" : "/patientdashboard");
+      await sendEmailVerification(res.user);
+      setRegisteredUser(res.user);
+      setShowVerification(true);
     } catch (error) {
       alert("Registration failed: " + error.message);
     }
   };
 
+  const handleResend = async () => {
+    if (registeredUser) {
+      await sendEmailVerification(registeredUser);
+      alert("Verification email resent.");
+    }
+  };
+
+  const handleCheck = async () => {
+    if (registeredUser) {
+      setVerifying(true);
+      await registeredUser.reload();
+      if (registeredUser.emailVerified) {
+        alert("Email verified! You can now log in.");
+        setShowVerification(false);
+        navigate("/login");
+      } else {
+        alert("Email not verified yet. Please check your inbox.");
+      }
+      setVerifying(false);
+    }
+  };
+
   return (
     <main className="relative min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-100 to-pink-100 px-4 py-10 overflow-hidden">
+      <EmailVerificationModal
+        open={showVerification}
+        onResend={handleResend}
+        onCheck={handleCheck}
+        onClose={() => setShowVerification(false)}
+        email={form.email}
+      />
       {/* Blurred floating shapes */}
       <div className="absolute top-0 left-0 w-72 h-72 bg-indigo-300 opacity-30 rounded-full filter blur-3xl animate-float z-0" style={{animationDuration:'7s'}} />
       <div className="absolute bottom-0 right-0 w-80 h-80 bg-pink-300 opacity-20 rounded-full filter blur-2xl animate-float z-0" style={{animationDuration:'9s'}} />
@@ -202,10 +134,6 @@ const Register = () => {
         </svg>
       </div>
       <div className="relative w-full max-w-3xl flex flex-col md:flex-row items-center justify-center z-10 gap-8">
-        {/* Mini-game column */}
-        <div className="mb-8 md:mb-0 md:mr-0 flex-shrink-0 flex flex-col items-center">
-          <SnakeGame />
-        </div>
         {/* Form container */}
         <div className="relative w-full max-w-md bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-8 flex flex-col items-center">
           <div className="mb-6 flex flex-col items-center">
@@ -227,7 +155,7 @@ const Register = () => {
           </button>
           <form className="w-full flex flex-col gap-4" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">Name</label>
+              <label className="block text-gray-700 mb-1 font-medium"></label>
               <input
                 type="text"
                 name="name"
@@ -239,7 +167,7 @@ const Register = () => {
               />
             </div>
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">Email</label>
+              <label className="block text-gray-700 mb-1 font-medium"></label>
               <input
                 type="email"
                 name="email"
@@ -251,7 +179,7 @@ const Register = () => {
               />
             </div>
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">Password</label>
+              <label className="block text-gray-700 mb-1 font-medium"></label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -281,7 +209,7 @@ const Register = () => {
               </div>
             </div>
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">Confirm Password</label>
+              <label className="block text-gray-700 mb-1 font-medium"></label>
               <div className="relative">
                 <input
                   type={showConfirm ? "text" : "password"}
@@ -311,7 +239,7 @@ const Register = () => {
               </div>
             </div>
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">Register as</label>
+              <label className="block text-gray-700 mb-1 font-medium"></label>
               <select
                 value={role}
                 onChange={e => setRole(e.target.value)}

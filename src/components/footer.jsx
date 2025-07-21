@@ -2,7 +2,7 @@ import React from "react";
 
 const Footer = () => {
   return (
-    <footer className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-6 mt-12 shadow-inner">
+    <footer className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-6 shadow-inner">
       <div className="container mx-auto flex flex-col md:flex-row items-center justify-between px-4">
         <div className="mb-4 md:mb-0 text-center md:text-left">
           <span className="font-semibold text-lg">Swasthyakink</span> &copy; {new Date().getFullYear()} All rights reserved.

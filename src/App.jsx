@@ -4,6 +4,7 @@ import Home from './pages/home';
 import About from './pages/about';
 import PatientDashboard from './pages/patientdashboard';
 import DoctorDashboard from './pages/doctordashboard';
+import FamilyDashboard from './pages/familydashboard';
 import Settings from './pages/settings';
 import Footer from './components/footer';
 import CursorTrail from './components/CursorTrail';
@@ -32,6 +33,7 @@ function App() {
         <Route path="/about" element={<About />} />
         <Route path="/patientdashboard" element={<PatientDashboard />} />
         <Route path="/doctordashboard" element={<DoctorDashboard />} />
+        <Route path="/familydashboard" element={<FamilyDashboard />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
