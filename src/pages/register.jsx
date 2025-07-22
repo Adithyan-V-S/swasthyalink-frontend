@@ -4,13 +4,14 @@ import { auth, googleProvider, db } from "../firebaseConfig";
 import { signInWithPopup, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
-function EmailVerificationModal({ open, onResend, onCheck, onClose, email }) {
+function EmailVerificationModal({ open, onResend, onCheck, onClose, email, verificationMessage }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
       <div className="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full text-center">
         <h2 className="text-xl font-bold mb-2 text-indigo-700">Confirm your email</h2>
         <p className="mb-4 text-gray-700">A confirmation link has been sent to <span className="font-semibold">{email}</span>.<br/>Please check your inbox and click the link to verify your account.</p>
+        {verificationMessage && <p className="text-blue-600 mb-4">{verificationMessage}</p>}
         <div className="flex flex-col gap-2">
           <button onClick={onResend} className="bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 font-semibold">Resend Email</button>
           <button onClick={onCheck} className="bg-yellow-400 text-indigo-800 py-2 rounded hover:bg-yellow-500 font-semibold">I've Verified</button>
@@ -26,15 +27,19 @@ const Register = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [role, setRole] = useState("patient");
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
+  const [error, setError] = useState("");
   const [showVerification, setShowVerification] = useState(false);
   const [registeredUser, setRegisteredUser] = useState(null);
   const [verifying, setVerifying] = useState(false);
+  const [credentials, setCredentials] = useState({ license: "", certification: "" });
+  const [verificationMessage, setVerificationMessage] = useState("");
   const navigate = useNavigate();
 
   const handleGoogleSignUp = async () => {
+    setError("");
     const selectedRole = window.prompt("Sign up as 'patient' or 'doctor'? Type your choice:", "patient");
     if (!selectedRole || (selectedRole !== "patient" && selectedRole !== "doctor")) {
-      alert("Please enter 'patient' or 'doctor' for role.");
+      setError("Please enter 'patient' or 'doctor' for role.");
       return;
     }
     try {
@@ -47,41 +52,67 @@ const Register = () => {
       });
       navigate(selectedRole === "doctor" ? "/doctordashboard" : "/patientdashboard");
     } catch (error) {
-      alert("Google sign up failed: " + error.message);
+      setError("Google sign up failed: " + error.message);
     }
   };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
+  const handleCredentialChange = (e) => {
+    setCredentials({ ...credentials, [e.target.name]: e.target.value });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    console.log("Registration submission started...");
     if (form.password !== form.confirm) {
-      alert("Passwords do not match");
+      setError("Passwords do not match");
       return;
     }
     try {
       const res = await createUserWithEmailAndPassword(auth, form.email, form.password);
+      console.log("User created successfully:", res.user.uid);
       await updateProfile(res.user, { displayName: form.name });
+      // Determine role and data to store
+      let userRole = role;
+      let extraData = {};
+      if (role === "doctor") {
+        userRole = "pending_doctor";
+        extraData = {
+          license: credentials.license,
+          certification: credentials.certification,
+          verified: false
+        };
+      }
       await setDoc(doc(db, "users", res.user.uid), {
         uid: res.user.uid,
         name: form.name,
         email: form.email,
-        role
+        role: userRole,
+        ...extraData
       });
+      console.log("User data saved to Firestore.");
+      
+      console.log("Sending verification email...");
       await sendEmailVerification(res.user);
+      console.log("Verification email command sent.");
+
       setRegisteredUser(res.user);
       setShowVerification(true);
+      console.log("Verification modal should now be visible.");
+
     } catch (error) {
-      alert("Registration failed: " + error.message);
+      console.error("An error occurred during registration:", error);
+      setError("Registration failed: " + error.message);
     }
   };
 
   const handleResend = async () => {
     if (registeredUser) {
       await sendEmailVerification(registeredUser);
-      alert("Verification email resent.");
+      setVerificationMessage("Verification email resent.");
     }
   };
 
@@ -90,15 +121,19 @@ const Register = () => {
       setVerifying(true);
       await registeredUser.reload();
       if (registeredUser.emailVerified) {
-        alert("Email verified! You can now log in.");
         setShowVerification(false);
-        navigate("/login");
+        navigate("/login", { state: { message: "Email verified successfully! You can now log in." } });
       } else {
-        alert("Email not verified yet. Please check your inbox.");
+        setVerificationMessage("Email not verified yet. Please check your inbox.");
       }
       setVerifying(false);
     }
   };
+
+  const handleModalClose = () => {
+    setShowVerification(false);
+    navigate('/login', { state: { message: "Registration complete. Please verify your email before logging in." } });
+  }
 
   return (
     <main className="relative min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-100 to-pink-100 px-4 py-10 overflow-hidden">
@@ -106,8 +141,9 @@ const Register = () => {
         open={showVerification}
         onResend={handleResend}
         onCheck={handleCheck}
-        onClose={() => setShowVerification(false)}
+        onClose={handleModalClose}
         email={form.email}
+        verificationMessage={verificationMessage}
       />
       {/* Blurred floating shapes */}
       <div className="absolute top-0 left-0 w-72 h-72 bg-indigo-300 opacity-30 rounded-full filter blur-3xl animate-float z-0" style={{animationDuration:'7s'}} />
@@ -153,6 +189,11 @@ const Register = () => {
             <svg className="w-5 h-5" viewBox="0 0 48 48"><g><path fill="#4285F4" d="M24 9.5c3.54 0 6.7 1.22 9.19 3.61l6.85-6.85C36.68 2.69 30.82 0 24 0 14.82 0 6.71 5.48 2.69 13.44l7.98 6.2C12.13 13.09 17.62 9.5 24 9.5z"/><path fill="#34A853" d="M46.1 24.55c0-1.64-.15-3.22-.42-4.74H24v9.01h12.42c-.54 2.9-2.18 5.36-4.65 7.01l7.19 5.59C43.98 37.13 46.1 31.36 46.1 24.55z"/><path fill="#FBBC05" d="M10.67 28.65c-1.13-3.36-1.13-6.99 0-10.35l-7.98-6.2C.7 16.09 0 19.95 0 24c0 4.05.7 7.91 2.69 11.9l7.98-6.2z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.14 15.9-5.82l-7.19-5.59c-2.01 1.35-4.59 2.16-8.71 2.16-6.38 0-11.87-3.59-14.33-8.94l-7.98 6.2C6.71 42.52 14.82 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></g></svg>
             Sign up with Google
           </button>
+          {error && (
+            <div className="w-full mt-4 text-center p-2 bg-red-100 text-red-700 rounded-lg">
+              {error}
+            </div>
+          )}
           <form className="w-full flex flex-col gap-4" onSubmit={handleSubmit}>
             <div>
               <label className="block text-gray-700 mb-1 font-medium"></label>
@@ -249,6 +290,34 @@ const Register = () => {
                 <option value="doctor">Doctor</option>
               </select>
             </div>
+            {role === "doctor" && (
+              <>
+                <div>
+                  <label className="block text-gray-700 mb-1 font-medium"></label>
+                  <input
+                    type="text"
+                    name="license"
+                    value={credentials.license}
+                    onChange={handleCredentialChange}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    placeholder="Enter your medical license number"
+                    required={role === "doctor"}
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 mb-1 font-medium"></label>
+                  <input
+                    type="text"
+                    name="certification"
+                    value={credentials.certification}
+                    onChange={handleCredentialChange}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    placeholder="Enter your certification"
+                    required={role === "doctor"}
+                  />
+                </div>
+              </>
+            )}
             <button
               type="submit"
               className="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold text-lg shadow hover:bg-yellow-400 hover:text-indigo-800 transition-colors duration-200 mt-2"

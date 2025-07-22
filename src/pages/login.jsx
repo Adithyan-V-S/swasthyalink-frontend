@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { auth, googleProvider } from "../firebaseConfig";
 import { signInWithPopup, signInWithEmailAndPassword } from "firebase/auth";
 
@@ -9,7 +9,15 @@ const Login = () => {
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.message) {
+      setMessage(location.state.message);
+    }
+  }, [location]);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -52,6 +60,11 @@ const Login = () => {
           <h2 className="text-2xl font-bold text-indigo-700">Welcome Back</h2>
           <p className="text-gray-500 text-sm">Login to your Swasthyakink account</p>
         </div>
+        {message && (
+          <div className="w-full mb-4 text-center p-2 bg-green-100 text-green-700 rounded-lg">
+            {message}
+          </div>
+        )}
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
