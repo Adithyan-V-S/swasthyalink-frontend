@@ -3,26 +3,20 @@ import { Link, useNavigate } from "react-router-dom";
 import { auth } from "../firebaseConfig";
 import NotificationCenter from "./NotificationCenter";
 import Sidebar from "./Sidebar";
+import { useAuth } from "../contexts/AuthContext";
 
 const Header = () => {
-  const [user, setUser] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
   const navigate = useNavigate();
+  const { currentUser, userRole, isAuthenticated, logout } = useAuth();
   let sidebarTimer = null;
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user);
-    });
-    return () => unsubscribe();
-  }, []);
 
   // Mock notifications - in a real app, these would come from Firebase
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated) {
       // Simulate notifications for demonstration
       const mockNotifications = [
         {
@@ -42,7 +36,7 @@ const Header = () => {
       ];
       setNotifications(mockNotifications);
     }
-  }, [user]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -82,9 +76,10 @@ const Header = () => {
 
   // Profile menu handlers
   const handleProfileMenu = () => setProfileMenuOpen((prev) => !prev);
-  const handleLogout = () => {
-    auth.signOut();
+  const handleLogout = async () => {
+    await logout();
     setProfileMenuOpen(false);
+    navigate('/');
   };
   const handleSettings = () => {
     navigate('/settings');
@@ -97,10 +92,10 @@ const Header = () => {
 
   return (
     <header className="bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg sticky top-0 z-50">
-      <nav className="w-full flex flex-wrap items-center justify-between py-0 px-0 min-h-[50px]">
+      <nav className="w-full flex flex-wrap items-center justify-between py-2 px-6 min-h-[50px]">
         {/* Left section: hamburger + logo */}
         <div className="flex items-center space-x-3 h-full">
-          {user && (
+          {isAuthenticated && (
             <button
               className="focus:outline-none m-0 p-0 h-full flex items-center"
               onClick={toggleSidebar}
@@ -108,17 +103,17 @@ const Header = () => {
               aria-label="Open sidebar menu"
               style={{lineHeight: 0}}
             >
-              <span className="material-icons text-white text-3xl leading-none">menu</span>
+              <span className="material-icons text-white text-2xl leading-none">menu</span>
             </button>
           )}
-          <span className="text-white text-2xl font-bold tracking-wide">Swasthyalink</span>
+          <span className="text-white text-xl font-bold tracking-wide">Swasthyalink</span>
         </div>
         {/* Right section: notifications, profile menu, login/register */}
         <div className="flex flex-1 items-center justify-end">
-          {user ? (
+          {isAuthenticated ? (
             <>
               <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <NotificationCenter 
                   notifications={notifications}
                   onMarkAsRead={handleMarkAsRead}
@@ -131,7 +126,7 @@ const Header = () => {
                     onClick={handleProfileMenu}
                     aria-label="Open profile menu"
                   >
-                    <span className="material-icons text-white text-3xl">account_circle</span>
+                    <span className="material-icons text-white text-2xl">account_circle</span>
                   </button>
                   {profileMenuOpen && (
                     <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg z-50 py-2">
@@ -144,9 +139,9 @@ const Header = () => {
               </div>
             </>
           ) : (
-            <div className="flex items-center ml-auto gap-4">
-              <Link to="/login" className="bg-white text-indigo-600 px-4 py-1 rounded-full shadow hover:bg-yellow-300 hover:text-indigo-800 transition-colors duration-200">Login</Link>
-              <Link to="/register" className="bg-yellow-300 text-indigo-800 px-4 py-1 rounded-full shadow hover:bg-white hover:text-indigo-600 transition-colors duration-200">Register</Link>
+            <div className="flex items-center ml-auto gap-3">
+              <Link to="/login" className="bg-white text-indigo-600 px-3 py-1.5 rounded-full shadow hover:bg-yellow-300 hover:text-indigo-800 transition-colors duration-200 text-sm">Login</Link>
+              <Link to="/register" className="bg-yellow-300 text-indigo-800 px-3 py-1.5 rounded-full shadow hover:bg-white hover:text-indigo-600 transition-colors duration-200 text-sm">Register</Link>
             </div>
           )}
         </div>

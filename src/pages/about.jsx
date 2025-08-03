@@ -31,16 +31,16 @@ const About = () => {
   return (
     <main className="min-h-[80vh] bg-gradient-to-br from-indigo-50 to-blue-100 px-4 py-10 flex flex-col items-center">
       <section className="max-w-3xl w-full text-center mb-10">
-        <h2 className="text-3xl md:text-4xl font-bold text-indigo-700 mb-4">About Swasthyakink</h2>
+        <h2 className="text-3xl md:text-4xl font-bold text-indigo-700 mb-4">About Swasthyalink</h2>
         <p className="text-lg text-gray-700 mb-6">
-          Swasthyakink is dedicated to empowering individuals with accessible healthcare information and digital tools. We believe in supporting the vision of a healthy India by aligning with key government health initiatives.
+          Swasthyalink is dedicated to empowering individuals with accessible healthcare information and digital tools. We believe in supporting the vision of a healthy India by aligning with key government health initiatives.
         </p>
       </section>
       <section className="max-w-4xl w-full">
         <h3 className="text-2xl font-semibold text-blue-700 mb-6 text-center">Key Indian Government Health Policies</h3>
         <div className="grid gap-6 md:grid-cols-2">
           {policies.map((policy) => (
-            <div key={policy.title} className="bg-white rounded-xl shadow-lg p-6 border-t-4 border-indigo-400 hover:border-yellow-400 transition-all duration-200">
+            <div key={policy.title} className="bg-white rounded-xl shadow-lg p-6 border-t-4 border-indigo-400 hover:border-yellow-400 transition-all duration-200 transform hover:scale-105">
               <h4 className="text-xl font-bold text-indigo-700 mb-2">{policy.title}</h4>
               <p className="text-gray-700 mb-3">{policy.description}</p>
               <a

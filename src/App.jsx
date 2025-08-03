@@ -1,18 +1,57 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+
+// Components
 import Header from './components/header';
+import Footer from './components/footer';
+import CursorTrail from './components/CursorTrail';
+import Loader from './components/Loader';
+import Chatbot from './components/Chatbot';
+import PrivateRoute from './components/PrivateRoute';
+import PublicRoute from './components/PublicRoute';
+import ErrorBoundary from './components/ErrorBoundary';
+import { AuthProvider } from './contexts/AuthContext';
+
+// Pages
 import Home from './pages/home';
 import About from './pages/about';
 import PatientDashboard from './pages/patientdashboard';
 import DoctorDashboard from './pages/doctordashboard';
+import AdminDashboard from './pages/admindashboard';
 import FamilyDashboard from './pages/familydashboard';
 import Settings from './pages/settings';
-import Footer from './components/footer';
-import CursorTrail from './components/CursorTrail';
 import Login from './pages/login';
 import Register from './pages/register';
-import { useEffect, useState } from 'react';
-import Loader from './components/Loader';
-import Chatbot from './components/Chatbot';
+
+function AppContent() {
+  const location = useLocation();
+  const hideHeaderFooterOn = ['/login', '/register'];
+
+  return (
+    <ErrorBoundary>
+      <CursorTrail />
+      {!hideHeaderFooterOn.includes(location.pathname) && <Header />}
+      <Routes>
+        {/* Public Routes - No authentication required */}
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+        
+        {/* Authentication Routes - Redirect if already logged in */}
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        
+        {/* Protected Routes - Authentication required */}
+        <Route path="/patientdashboard" element={<PrivateRoute requiredRole="patient"><PatientDashboard /></PrivateRoute>} />
+        <Route path="/doctordashboard" element={<PrivateRoute requiredRole="doctor"><DoctorDashboard /></PrivateRoute>} />
+        <Route path="/admindashboard" element={<PrivateRoute requiredRole="admin"><AdminDashboard /></PrivateRoute>} />
+        <Route path="/familydashboard" element={<PrivateRoute requiredRole="family"><FamilyDashboard /></PrivateRoute>} />
+        <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+      </Routes>
+      {!hideHeaderFooterOn.includes(location.pathname) && <Footer />}
+      <Chatbot />
+    </ErrorBoundary>
+  );
+}
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -26,20 +65,9 @@ function App() {
 
   return (
     <Router>
-      <CursorTrail />
-      <Header />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/patientdashboard" element={<PatientDashboard />} />
-        <Route path="/doctordashboard" element={<DoctorDashboard />} />
-        <Route path="/familydashboard" element={<FamilyDashboard />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-      </Routes>
-      <Footer />
-      <Chatbot />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </Router>
   );
 }

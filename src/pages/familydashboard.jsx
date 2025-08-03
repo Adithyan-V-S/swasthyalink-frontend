@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { auth } from "../firebaseConfig";
+import { useAuth } from "../contexts/AuthContext";
+import FamilyChat from "../components/FamilyChat";
+import AddFamilyMember from "../components/AddFamilyMember";
 
 // Mock shared patient data
 const mockSharedPatient = {
@@ -53,18 +55,52 @@ const mockFamilyMember = {
 };
 
 const FamilyDashboard = () => {
-  const [uid, setUid] = useState("");
+  const { currentUser, userRole } = useAuth();
   const [activeIdx, setActiveIdx] = useState(0);
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [emergencyAccessExpiry, setEmergencyAccessExpiry] = useState(null);
   const [filteredRecords, setFilteredRecords] = useState([]);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState([
+    {
+      id: 1,
+      name: 'John Doe',
+      email: 'john.doe@example.com',
+      phone: '+91 98765 43210',
+      relationship: 'Patient',
+      accessLevel: 'full',
+      isEmergencyContact: true,
+      enableChat: true,
+      avatar: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=64',
+      status: 'accepted',
+      lastAccess: '2024-01-15 14:30',
+      isOnline: true
+    },
+    {
+      id: 2,
+      name: 'Emma Doe',
+      email: 'emma.doe@example.com',
+      phone: '+91 98765 43211',
+      relationship: 'Daughter',
+      accessLevel: 'limited',
+      isEmergencyContact: false,
+      enableChat: true,
+      avatar: 'https://ui-avatars.com/api/?name=Emma+Doe&background=10b981&color=fff&size=64',
+      status: 'accepted',
+      lastAccess: '2024-01-14 10:15',
+      isOnline: false
+    }
+  ]);
 
+  // Debug logging
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) setUid(user.uid);
-    });
-    return () => unsubscribe();
-  }, []);
+    console.log("FamilyDashboard: Component mounted");
+    console.log("FamilyDashboard: currentUser:", currentUser);
+    console.log("FamilyDashboard: userRole:", userRole);
+  }, [currentUser, userRole]);
+
+  // Remove the old useEffect since we're now using the auth context
 
   useEffect(() => {
     // Filter records based on access level
@@ -120,6 +156,51 @@ const FamilyDashboard = () => {
       default: return "bg-gray-100 text-gray-800";
     }
   };
+
+  const handleAddFamilyMember = (newMember) => {
+    setFamilyMembers(prev => [...prev, newMember]);
+    // In a real app, this would also create a chat conversation
+    console.log('New family member added:', newMember);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'accepted': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'declined': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Show loading state if user data is not available
+  if (!currentUser && userRole !== 'patient') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading Family Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if user doesn't have access (only patients can access family dashboard)
+  if (userRole !== 'patient') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">
+            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+          <p className="text-gray-600">Only patients can access the Family Dashboard.</p>
+          <p className="text-sm text-gray-500 mt-2">Current role: {userRole}</p>
+        </div>
+      </div>
+    );
+  }
 
   const renderOverview = () => (
     <div className="w-full max-w-6xl space-y-8">
@@ -278,13 +359,101 @@ const FamilyDashboard = () => {
     </div>
   );
 
+  const renderFamilyMembers = () => (
+    <div className="w-full max-w-6xl space-y-6">
+      <section className="bg-white rounded-xl shadow-lg p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-indigo-700">Family Network</h2>
+          <button
+            onClick={() => setShowAddMember(true)}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2"
+          >
+            <span className="material-icons text-sm">person_add</span>
+            <span>Add Member</span>
+          </button>
+        </div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {familyMembers.map((member) => (
+            <div key={member.id} className="bg-gray-50 rounded-lg p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center space-x-4 mb-4">
+                <div className="relative">
+                  <img
+                    src={member.avatar}
+                    alt={member.name}
+                    className="w-16 h-16 rounded-full"
+                  />
+                  {member.isOnline && (
+                    <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900">{member.name}</h3>
+                  <p className="text-sm text-gray-600">{member.relationship}</p>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <span className={`text-xs px-2 py-1 rounded-full ${getAccessLevelColor(member.accessLevel)}`}>
+                      {member.accessLevel}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(member.status)}`}>
+                      {member.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2">
+                  <span className="material-icons text-sm">email</span>
+                  <span>{member.email}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="material-icons text-sm">phone</span>
+                  <span>{member.phone}</span>
+                </div>
+                {member.lastAccess && (
+                  <div className="flex items-center space-x-2">
+                    <span className="material-icons text-sm">access_time</span>
+                    <span>Last access: {member.lastAccess}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center space-x-2">
+                  {member.isEmergencyContact && (
+                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">Emergency</span>
+                  )}
+                  {member.enableChat && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Chat</span>
+                  )}
+                </div>
+                <div className="flex space-x-2">
+                  <button className="text-indigo-600 hover:text-indigo-800 transition-colors">
+                    <span className="material-icons text-sm">edit</span>
+                  </button>
+                  <button className="text-red-600 hover:text-red-800 transition-colors">
+                    <span className="material-icons text-sm">delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
   const renderMainContent = () => {
     switch (activeIdx) {
       case 0: // Overview
         return renderOverview();
       case 1: // Health Records
         return renderHealthRecords();
-      case 2: // Emergency
+      case 2: // Family Members
+        return renderFamilyMembers();
+      case 3: // Chat
+        return <FamilyChat />;
+      case 4: // Emergency
         return (
           <div className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
             <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">Emergency Information</h2>
@@ -300,12 +469,12 @@ const FamilyDashboard = () => {
                   ))}
                 </div>
               </div>
-              
+
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-yellow-800 mb-4">Allergies & Conditions</h3>
                 <p className="text-gray-600">No known allergies or critical conditions recorded.</p>
               </div>
-              
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-blue-800 mb-4">Current Medications</h3>
                 <ul className="space-y-2">
@@ -328,62 +497,97 @@ const FamilyDashboard = () => {
   };
 
   const sidebarLinks = [
-    { 
-      label: "Overview", 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M13 5v6h6m-6 0v6m0 0H7m6 0h6" />
-        </svg>
-      ) 
+    {
+      label: "Overview",
+      icon: <span className="material-icons text-lg">dashboard</span>
     },
-    { 
-      label: "Health Records", 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-      ) 
+    {
+      label: "Health Records",
+      icon: <span className="material-icons text-lg">medical_services</span>
     },
-    { 
-      label: "Emergency", 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-        </svg>
-      ) 
+    {
+      label: "Family Network",
+      icon: <span className="material-icons text-lg">family_restroom</span>
+    },
+    {
+      label: "Family Chat",
+      icon: <span className="material-icons text-lg">chat</span>,
+      badge: 3 // Unread messages count
+    },
+    {
+      label: "Emergency",
+      icon: <span className="material-icons text-lg">emergency</span>
     },
   ];
 
   return (
     <main className="min-h-[80vh] bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-10 flex flex-row items-start">
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="md:hidden fixed top-20 left-4 z-40 bg-white p-2 rounded-lg shadow-lg"
+      >
+        <span className="material-icons text-indigo-700">
+          {sidebarOpen ? 'close' : 'menu'}
+        </span>
+      </button>
+
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="hidden md:flex flex-col h-full bg-black rounded-2xl shadow-xl mr-8 p-2 sticky top-10 z-10 justify-between transition-all duration-300 group hover:w-56 w-16">
+      <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 fixed md:relative top-0 left-0 h-full bg-white shadow-xl md:rounded-2xl mr-8 p-6 z-40 w-64 transition-transform duration-300`}>
         <div>
           {/* Family Member Profile Section */}
-          <div className="flex flex-col items-center transition-all duration-300 overflow-hidden group-hover:max-h-40 max-h-0 group-hover:mb-8 mb-0 group-hover:scale-100 scale-0 group-hover:opacity-100 opacity-0 group-hover:max-w-full max-w-0">
-            <img src={mockFamilyMember.avatar} alt="avatar" className="w-16 h-16 rounded-full border-2 border-indigo-500 mb-2" />
-            <div className="font-semibold text-indigo-700 whitespace-nowrap">{mockFamilyMember.name}</div>
-            <div className="text-xs text-gray-500 whitespace-nowrap">{mockFamilyMember.relationship}</div>
+          <div className="flex flex-col items-center mb-8">
+            <img src={mockFamilyMember.avatar} alt="avatar" className="w-16 h-16 rounded-full border-2 border-indigo-500 mb-3" />
+            <div className="font-semibold text-indigo-700 text-center">{mockFamilyMember.name}</div>
+            <div className="text-xs text-gray-500 text-center">{mockFamilyMember.relationship}</div>
           </div>
-          <div className="text-2xl font-bold text-indigo-700 mb-6 text-center transition-all duration-300 group-hover:opacity-100 opacity-0 group-hover:mb-6 mb-0 group-hover:scale-100 scale-0 group-hover:max-w-full max-w-0">Family Access</div>
+          
+          <div className="text-xl font-bold text-indigo-700 mb-6 text-center">Family Access</div>
+          
           {sidebarLinks.map((link, idx) => (
             <button
               key={idx}
-              className={`flex items-center gap-3 px-4 py-2 rounded-lg font-medium transition-colors relative group/sidebar w-full ${activeIdx === idx ? 'bg-indigo-100 text-indigo-900 font-bold' : 'hover:bg-indigo-100 text-indigo-700'}`}
-              onClick={() => setActiveIdx(idx)}
-              title={link.label}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors relative w-full mb-2 ${
+                activeIdx === idx 
+                  ? 'bg-indigo-100 text-indigo-900 font-bold shadow-sm' 
+                  : 'hover:bg-indigo-50 text-indigo-700 hover:text-indigo-900'
+              }`}
+              onClick={() => {
+                setActiveIdx(idx);
+                setSidebarOpen(false); // Close mobile sidebar when option is selected
+              }}
             >
               {link.icon}
-              <span className="transition-all duration-300 group-hover/sidebar:opacity-100 opacity-0 group-hover/sidebar:ml-2 ml-[-8px] whitespace-nowrap group-hover/sidebar:scale-100 scale-0 group-hover/sidebar:max-w-full max-w-0">{link.label}</span>
+              <span className="text-sm">{link.label}</span>
+              {link.badge && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {link.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
       </aside>
       
       {/* Main content */}
-      <div className="flex-1 flex flex-col items-center">
+      <div className="flex-1 flex flex-col items-center md:ml-0 ml-0">
         {renderMainContent()}
       </div>
+
+      {/* Add Family Member Modal */}
+      <AddFamilyMember
+        isOpen={showAddMember}
+        onClose={() => setShowAddMember(false)}
+        onAdd={handleAddFamilyMember}
+      />
     </main>
   );
 };

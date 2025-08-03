@@ -1,13 +1,22 @@
 {
-  "name": "frontend",
+  "name": "swasthyalink-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "Digital healthcare platform frontend - connecting patients, doctors, and families",
+  "keywords": ["healthcare", "digital-health", "react", "firebase", "medical-records"],
+  "author": "Swasthyalink Team",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "test": "echo \"Tests coming soon\" && exit 0",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,md}\"",
+    "clean": "rm -rf dist node_modules/.vite",
+    "analyze": "npm run build && npx vite-bundle-analyzer dist"
   },
   "dependencies": {
     "firebase": "^11.10.0",

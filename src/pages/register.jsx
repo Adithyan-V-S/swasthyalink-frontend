@@ -25,21 +25,28 @@ function EmailVerificationModal({ open, onResend, onCheck, onClose, email, verif
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [role, setRole] = useState("patient");
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [error, setError] = useState("");
   const [showVerification, setShowVerification] = useState(false);
   const [registeredUser, setRegisteredUser] = useState(null);
   const [verifying, setVerifying] = useState(false);
-  const [credentials, setCredentials] = useState({ license: "", certification: "" });
   const [verificationMessage, setVerificationMessage] = useState("");
   const navigate = useNavigate();
+  const [validation, setValidation] = useState({ email: '', password: '', confirm: '' });
+
+  const validateEmail = (email) => {
+    // Simple email regex
+    return /^\S+@\S+\.\S+$/.test(email);
+  };
+  const validatePassword = (password) => {
+    return password.length >= 8;
+  };
 
   const handleGoogleSignUp = async () => {
     setError("");
-    const selectedRole = window.prompt("Sign up as 'patient' or 'doctor'? Type your choice:", "patient");
-    if (!selectedRole || (selectedRole !== "patient" && selectedRole !== "doctor")) {
-      setError("Please enter 'patient' or 'doctor' for role.");
+    const selectedRole = window.prompt("Sign up as 'patient', 'doctor', or 'admin'? Type your choice:", "patient");
+    if (!selectedRole || (selectedRole !== "patient" && selectedRole !== "doctor" && selectedRole !== "admin")) {
+      setError("Please enter 'patient', 'doctor', or 'admin' for role.");
       return;
     }
     try {
@@ -50,17 +57,33 @@ const Register = () => {
         email: result.user.email,
         role: selectedRole
       });
-      navigate(selectedRole === "doctor" ? "/doctordashboard" : "/patientdashboard");
+      if (selectedRole === "admin") {
+        navigate("/admin");
+      } else if (selectedRole === "doctor") {
+        navigate("/doctordashboard");
+      } else {
+        navigate("/patientdashboard");
+      }
     } catch (error) {
       setError("Google sign up failed: " + error.message);
     }
   };
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-  const handleCredentialChange = (e) => {
-    setCredentials({ ...credentials, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    // Real-time validation
+    if (name === 'email') {
+      setValidation((v) => ({ ...v, email: validateEmail(value) ? '' : 'Please enter a valid email address.' }));
+    }
+    if (name === 'password') {
+      setValidation((v) => ({ ...v, password: validatePassword(value) ? '' : 'Password must be at least 8 characters.' }));
+      // Also check confirm
+      setValidation((v) => ({ ...v, confirm: form.confirm && value !== form.confirm ? 'Passwords do not match.' : '' }));
+    }
+    if (name === 'confirm') {
+      setValidation((v) => ({ ...v, confirm: value !== form.password ? 'Passwords do not match.' : '' }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -71,29 +94,31 @@ const Register = () => {
       setError("Passwords do not match");
       return;
     }
+    
+    // Ask for role selection
+    const selectedRole = window.prompt("Register as 'patient', 'doctor', or 'admin'? Type your choice:", "patient");
+    if (!selectedRole || (selectedRole !== "patient" && selectedRole !== "doctor" && selectedRole !== "admin")) {
+      setError("Please enter 'patient', 'doctor', or 'admin' for role.");
+      return;
+    }
+    
     try {
       const res = await createUserWithEmailAndPassword(auth, form.email, form.password);
       console.log("User created successfully:", res.user.uid);
       await updateProfile(res.user, { displayName: form.name });
-      // Determine role and data to store
-      let userRole = role;
-      let extraData = {};
-      if (role === "doctor") {
-        userRole = "pending_doctor";
-        extraData = {
-          license: credentials.license,
-          certification: credentials.certification,
-          verified: false
-        };
-      }
-      await setDoc(doc(db, "users", res.user.uid), {
+      
+      // Store user data temporarily (will be moved to Firestore after verification)
+      const tempUserData = {
         uid: res.user.uid,
         name: form.name,
         email: form.email,
-        role: userRole,
-        ...extraData
-      });
-      console.log("User data saved to Firestore.");
+        role: selectedRole,
+        emailVerified: false,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Store in localStorage temporarily
+      localStorage.setItem('tempUserData', JSON.stringify(tempUserData));
       
       console.log("Sending verification email...");
       await sendEmailVerification(res.user);
@@ -121,6 +146,31 @@ const Register = () => {
       setVerifying(true);
       await registeredUser.reload();
       if (registeredUser.emailVerified) {
+        // Email is verified, now save data to Firestore
+        try {
+          const tempUserData = JSON.parse(localStorage.getItem('tempUserData'));
+          if (tempUserData) {
+            // Update the data with verification status
+            const userData = {
+              ...tempUserData,
+              emailVerified: true,
+              verifiedAt: new Date().toISOString()
+            };
+            
+            // Save to Firestore
+            await setDoc(doc(db, "users", registeredUser.uid), userData);
+            console.log("User data saved to Firestore after email verification.");
+            
+            // Clear temporary data
+            localStorage.removeItem('tempUserData');
+          }
+        } catch (error) {
+          console.error("Error saving user data to Firestore:", error);
+          setVerificationMessage("Email verified but there was an error saving your data. Please contact support.");
+          setVerifying(false);
+          return;
+        }
+        
         setShowVerification(false);
         navigate("/login", { state: { message: "Email verified successfully! You can now log in." } });
       } else {
@@ -132,7 +182,9 @@ const Register = () => {
 
   const handleModalClose = () => {
     setShowVerification(false);
-    navigate('/login', { state: { message: "Registration complete. Please verify your email before logging in." } });
+    // Clean up temporary data if user closes without verifying
+    localStorage.removeItem('tempUserData');
+    navigate('/login', { state: { message: "Account created. Please verify your email to complete registration." } });
   }
 
   return (
@@ -171,7 +223,7 @@ const Register = () => {
       </div>
       <div className="relative w-full max-w-3xl flex flex-col md:flex-row items-center justify-center z-10 gap-8">
         {/* Form container */}
-        <div className="relative w-full max-w-md bg-white/80 backdrop-blur-md rounded-2xl shadow-2xl p-8 flex flex-col items-center">
+        <div className="relative w-full max-w-md bg-white/90 backdrop-blur-lg rounded-3xl shadow-3xl p-10 flex flex-col items-center border border-indigo-100">
           <div className="mb-6 flex flex-col items-center">
             <img
               src="https://e7.pngegg.com/pngimages/261/718/png-clipart-perth-health-fitness-and-wellness-logo-meetup-embracing-miscellaneous-leaf-thumbnail.png"
@@ -194,10 +246,16 @@ const Register = () => {
               {error}
             </div>
           )}
+          {showVerification && !error && (
+            <div className="w-full mt-4 text-center p-2 bg-blue-100 text-blue-700 rounded-lg">
+              Account created! Please verify your email to complete registration and save your data.
+            </div>
+          )}
           <form className="w-full flex flex-col gap-4" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-gray-700 mb-1 font-medium"></label>
+              <label htmlFor="name" className="block text-gray-700 mb-1 font-medium">Name</label>
               <input
+                id="name"
                 type="text"
                 name="name"
                 value={form.name}
@@ -208,8 +266,9 @@ const Register = () => {
               />
             </div>
             <div>
-              <label className="block text-gray-700 mb-1 font-medium"></label>
+              <label htmlFor="email" className="block text-gray-700 mb-1 font-medium">Email</label>
               <input
+                id="email"
                 type="email"
                 name="email"
                 value={form.email}
@@ -218,11 +277,13 @@ const Register = () => {
                 placeholder="Enter your email"
                 required
               />
+              {validation.email && <div className="text-red-500 text-xs mt-1">{validation.email}</div>}
             </div>
             <div>
-              <label className="block text-gray-700 mb-1 font-medium"></label>
+              <label htmlFor="password" className="block text-gray-700 mb-1 font-medium">Password</label>
               <div className="relative">
                 <input
+                  id="password"
                   type={showPassword ? "text" : "password"}
                   name="password"
                   value={form.password}
@@ -248,11 +309,13 @@ const Register = () => {
                   )}
                 </button>
               </div>
+              {validation.password && <div className="text-red-500 text-xs mt-1">{validation.password}</div>}
             </div>
             <div>
-              <label className="block text-gray-700 mb-1 font-medium"></label>
+              <label htmlFor="confirm" className="block text-gray-700 mb-1 font-medium">Confirm Password</label>
               <div className="relative">
                 <input
+                  id="confirm"
                   type={showConfirm ? "text" : "password"}
                   name="confirm"
                   value={form.confirm}
@@ -278,46 +341,8 @@ const Register = () => {
                   )}
                 </button>
               </div>
+              {validation.confirm && <div className="text-red-500 text-xs mt-1">{validation.confirm}</div>}
             </div>
-            <div>
-              <label className="block text-gray-700 mb-1 font-medium"></label>
-              <select
-                value={role}
-                onChange={e => setRole(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              >
-                <option value="patient">Patient</option>
-                <option value="doctor">Doctor</option>
-              </select>
-            </div>
-            {role === "doctor" && (
-              <>
-                <div>
-                  <label className="block text-gray-700 mb-1 font-medium"></label>
-                  <input
-                    type="text"
-                    name="license"
-                    value={credentials.license}
-                    onChange={handleCredentialChange}
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    placeholder="Enter your medical license number"
-                    required={role === "doctor"}
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-700 mb-1 font-medium"></label>
-                  <input
-                    type="text"
-                    name="certification"
-                    value={credentials.certification}
-                    onChange={handleCredentialChange}
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    placeholder="Enter your certification"
-                    required={role === "doctor"}
-                  />
-                </div>
-              </>
-            )}
             <button
               type="submit"
               className="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold text-lg shadow hover:bg-yellow-400 hover:text-indigo-800 transition-colors duration-200 mt-2"
