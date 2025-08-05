@@ -25,11 +25,11 @@ import Register from './pages/register';
 
 function AppContent() {
   const location = useLocation();
-  const hideHeaderFooterOn = ['/login', '/register'];
+  const hideHeaderFooterOn = ['/login', '/register', '/admindashboard'];
 
   return (
     <ErrorBoundary>
-      <CursorTrail />
+      {/* <CursorTrail /> */}
       {!hideHeaderFooterOn.includes(location.pathname) && <Header />}
       <Routes>
         {/* Public Routes - No authentication required */}

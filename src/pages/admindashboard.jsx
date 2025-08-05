@@ -20,6 +20,7 @@ const AdminDashboard = () => {
     phone: ""
   });
   const [currentUser, setCurrentUser] = useState(null);
+  const [presetAdmin, setPresetAdmin] = useState(localStorage.getItem('presetAdmin') === 'true');
   const navigate = useNavigate();
 
   // Mock data for analytics
@@ -35,8 +36,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     // Check for preset admin first
-    const isPresetAdmin = localStorage.getItem('presetAdmin') === 'true';
-    if (isPresetAdmin) {
+    if (presetAdmin) {
       setCurrentUser({ email: 'admin@gmail.com', displayName: 'Admin User' });
       fetchData();
       return;
@@ -61,7 +61,7 @@ const AdminDashboard = () => {
     });
 
     return () => unsubscribe();
-  }, [navigate]);
+  }, [navigate, presetAdmin]);
 
   const fetchData = async () => {
     // For preset admin, skip Firestore fetching initially
@@ -101,6 +101,7 @@ const AdminDashboard = () => {
     try {
       // Clear preset admin flag
       localStorage.removeItem('presetAdmin');
+      setPresetAdmin(false);
       await signOut(auth);
       navigate("/login");
     } catch (error) {

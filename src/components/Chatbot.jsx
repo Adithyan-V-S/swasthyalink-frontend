@@ -1,51 +1,48 @@
 import React, { useState, useRef } from "react";
-
-const LOCAL_RESPONSES = [
-  { keywords: ["hello", "hi"], response: "Hello! How can I help you with your health today?" },
-  { keywords: ["help", "support"], response: "I'm here to help! You can ask about appointments, doctors, or health tips." },
-  { keywords: ["doctor"], response: "You can find a list of doctors in the Doctors section or book an appointment from your dashboard." },
-  { keywords: ["appointment"], response: "To book an appointment, go to your dashboard and click 'Book Appointment'." },
-  { keywords: ["medicine", "prescription"], response: "Always follow your doctor's prescription. If you have questions, consult your healthcare provider." },
-  { keywords: ["emergency"], response: "If this is a medical emergency, please call your local emergency number immediately!" },
-  { keywords: ["bye", "goodbye"], response: "Take care! If you need anything else, just ask." },
-];
-
-const HEALTH_TIPS = [
-  "Drink plenty of water every day!",
-  "Regular exercise helps keep your body and mind healthy.",
-  "Eat a balanced diet rich in fruits and vegetables.",
-  "Wash your hands frequently to prevent illness.",
-  "Get enough sleep for better health.",
-  "Don't skip your regular health checkups!",
-  "Take breaks and manage stress for mental well-being.",
-];
-
-function getLocalBotResponse(input) {
-  const text = input.toLowerCase();
-  for (const entry of LOCAL_RESPONSES) {
-    if (entry.keywords.some((kw) => text.includes(kw))) {
-      return entry.response;
-    }
-  }
-  // If no keyword matched, return a random health tip
-  return HEALTH_TIPS[Math.floor(Math.random() * HEALTH_TIPS.length)];
-}
+import dialogflowService from '../services/dialogflowService';
 
 const Chatbot = () => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hi! I'm your health assistant. Ask me anything about health, appointments, or doctors!" },
+    { role: "assistant", content: "Hi! I'm your health assistant powered by Dialogflow. Ask me anything about health, appointments, or doctors!" },
   ]);
   const [input, setInput] = useState("");
+  const [sessionId, setSessionId] = useState(null);
   const messagesEndRef = useRef(null);
 
-  const sendMessage = (e) => {
+  const sendMessage = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
+    
+    // Add user message to chat
     const userMsg = { role: "user", content: input };
-    const botMsg = { role: "assistant", content: getLocalBotResponse(input) };
-    setMessages((msgs) => [...msgs, userMsg, botMsg]);
+    setMessages((msgs) => [...msgs, userMsg]);
+    
+    // Clear input field
     setInput("");
+    
+    try {
+      // Get response from Dialogflow
+      const response = await dialogflowService.detectIntent(input, sessionId);
+      
+      if (response.success) {
+        const botMsg = { role: "assistant", content: response.response };
+        setMessages((msgs) => [...msgs, botMsg]);
+        
+        // Update session ID if provided
+        if (response.sessionId) {
+          setSessionId(response.sessionId);
+        }
+      } else {
+        // Fallback message if Dialogflow fails
+        const botMsg = { role: "assistant", content: "Sorry, I'm having trouble understanding. Could you please rephrase your question?" };
+        setMessages((msgs) => [...msgs, botMsg]);
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      const botMsg = { role: "assistant", content: "Sorry, I'm currently unavailable. Please try again later." };
+      setMessages((msgs) => [...msgs, botMsg]);
+    }
   };
 
   React.useEffect(() => {
@@ -68,7 +65,7 @@ const Chatbot = () => {
       {open && (
         <div className="fixed bottom-24 right-6 z-50 w-80 max-w-[95vw] bg-white rounded-2xl shadow-2xl border border-indigo-200 flex flex-col">
           <div className="px-4 py-3 bg-indigo-600 text-white rounded-t-2xl font-bold flex justify-between items-center">
-            Health Chatbot
+            Health Chatbot (Dialogflow)
             <button onClick={() => setOpen(false)} className="text-white text-xl font-bold">×</button>
           </div>
           <div className="flex-1 px-4 py-2 overflow-y-auto max-h-80" style={{ minHeight: 200 }}>
@@ -103,4 +100,4 @@ const Chatbot = () => {
   );
 };
 
-export default Chatbot; 
+export default Chatbot;

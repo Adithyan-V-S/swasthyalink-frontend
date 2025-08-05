@@ -38,8 +38,15 @@ const Register = () => {
     // Simple email regex
     return /^\S+@\S+\.\S+$/.test(email);
   };
+
+  // Validate name is not purely numeric
+  const validateName = (name) => {
+    return !/^\d+$/.test(name);
+  };
+
+  // Validate password contains at least one letter and one number and minimum 8 chars
   const validatePassword = (password) => {
-    return password.length >= 8;
+    return /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
   };
 
   const handleGoogleSignUp = async () => {
@@ -73,11 +80,14 @@ const Register = () => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
     // Real-time validation
+    if (name === 'name') {
+      setValidation((v) => ({ ...v, name: validateName(value) ? '' : 'Name should not be a number.' }));
+    }
     if (name === 'email') {
       setValidation((v) => ({ ...v, email: validateEmail(value) ? '' : 'Please enter a valid email address.' }));
     }
     if (name === 'password') {
-      setValidation((v) => ({ ...v, password: validatePassword(value) ? '' : 'Password must be at least 8 characters.' }));
+      setValidation((v) => ({ ...v, password: validatePassword(value) ? '' : 'Password must be at least 8 characters and include both letters and numbers.' }));
       // Also check confirm
       setValidation((v) => ({ ...v, confirm: form.confirm && value !== form.confirm ? 'Passwords do not match.' : '' }));
     }
@@ -90,6 +100,19 @@ const Register = () => {
     e.preventDefault();
     setError("");
     console.log("Registration submission started...");
+
+    // Validate name
+    if (!validateName(form.name)) {
+      setValidation((v) => ({ ...v, name: 'Name should not be a number.' }));
+      return;
+    }
+
+    // Validate password
+    if (!validatePassword(form.password)) {
+      setValidation((v) => ({ ...v, password: 'Password must be at least 8 characters and include both letters and numbers.' }));
+      return;
+    }
+
     if (form.password !== form.confirm) {
       setError("Passwords do not match");
       return;
@@ -252,7 +275,7 @@ const Register = () => {
             </div>
           )}
           <form className="w-full flex flex-col gap-4" onSubmit={handleSubmit}>
-            <div>
+          <div>
               <label htmlFor="name" className="block text-gray-700 mb-1 font-medium">Name</label>
               <input
                 id="name"
@@ -264,6 +287,7 @@ const Register = () => {
                 placeholder="Enter your name"
                 required
               />
+              {validation.name && <div className="text-red-500 text-xs mt-1">{validation.name}</div>}
             </div>
             <div>
               <label htmlFor="email" className="block text-gray-700 mb-1 font-medium">Email</label>

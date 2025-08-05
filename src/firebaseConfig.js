@@ -3,16 +3,16 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
+// TODO: Replace the following with your app's Firebase project configuration
+// You can find these values in your Firebase project settings
 const firebaseConfig = {
   apiKey: "AIzaSyCwoqFsGf3KNbKKeAht16HnGgdclsub0A0",
   authDomain: "swasthyakink.firebaseapp.com",
   projectId: "swasthyakink",
   storageBucket: "swasthyakink.appspot.com",
   messagingSenderId: "613048256435",
-  // For development, we can use a placeholder appId
-  appId: "1:613048256435:web:development_app_id", 
-  // Optional measurement ID
-  measurementId: "G-development-id" 
+  appId: "1:613048256435:web:development_app_id",
+  measurementId: "G-development-id" // Optional
 };
 
 // Initialize Firebase

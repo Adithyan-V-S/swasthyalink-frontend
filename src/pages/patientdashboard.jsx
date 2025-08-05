@@ -245,8 +245,7 @@ const PatientDashboard = () => {
                   <h3 className="font-semibold text-gray-800">{member.name}</h3>
                   <p className="text-sm text-gray-600">{member.relationship}</p>
                 </div>
-              </div>
-              
+              </div>  
               <div className="space-y-2 mb-4">
                 <p className="text-sm text-gray-600">{member.email}</p>
                 <p className="text-sm text-gray-600">{member.phone}</p>
