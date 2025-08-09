@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebaseConfig";
-import { signOut } from "firebase/auth";
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { useAuth } from "../contexts/AuthContext";
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -22,6 +22,7 @@ const AdminDashboard = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [presetAdmin, setPresetAdmin] = useState(localStorage.getItem('presetAdmin') === 'true');
   const navigate = useNavigate();
+  const { logout, setPresetAdmin: setAuthPresetAdmin } = useAuth();
 
   // Mock data for analytics
   const analyticsData = {
@@ -35,8 +36,10 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
+    console.log("useEffect auth state check, presetAdmin:", presetAdmin);
     // Check for preset admin first
     if (presetAdmin) {
+      console.log("Preset admin detected, setting current user and fetching data");
       setCurrentUser({ email: 'admin@gmail.com', displayName: 'Admin User' });
       fetchData();
       return;
@@ -44,24 +47,29 @@ const AdminDashboard = () => {
     
     // Only check Firebase Auth if not preset admin
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      console.log("onAuthStateChanged triggered, user:", user);
       if (user) {
         // Check if user is admin
         const userDoc = await getDocs(collection(db, "users"));
         const userData = userDoc.docs.find(doc => doc.data().uid === user.uid);
         if (userData && userData.data().role === "admin") {
+          console.log("User is admin, setting current user and fetching data");
           setCurrentUser(user);
           fetchData();
         } else {
-          // Not admin, redirect to login
-          navigate("/login");
+          console.log("User is not admin");
+          // Not admin, do not navigate here to prevent repeated redirects
+          setLoading(false);
         }
       } else {
-        navigate("/login");
+        console.log("No user detected");
+        setLoading(false);
+        // Do not navigate here to prevent repeated redirects
       }
     });
 
     return () => unsubscribe();
-  }, [navigate, presetAdmin]);
+  }, [presetAdmin]);
 
   const fetchData = async () => {
     // For preset admin, skip Firestore fetching initially
@@ -99,10 +107,11 @@ const AdminDashboard = () => {
 
   const handleLogout = async () => {
     try {
+      console.log("Logout initiated");
       // Clear preset admin flag
-      localStorage.removeItem('presetAdmin');
-      setPresetAdmin(false);
-      await signOut(auth);
+      setAuthPresetAdmin(false);
+      await logout();
+      console.log("Sign out completed");
       navigate("/login");
     } catch (error) {
       console.error("Error signing out:", error);

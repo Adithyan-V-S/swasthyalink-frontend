@@ -1,7 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-
 const Sidebar = ({ open, onClose }) => {
   const { userRole } = useAuth();
 

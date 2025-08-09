@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import FamilyChat from "../components/FamilyChat";
 import AddFamilyMember from "../components/AddFamilyMember";
+import FamilyRequestManager from "../components/FamilyRequestManager";
+import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";
+import FamilyNetworkManager from "../components/FamilyNetworkManager";
 
 // Mock shared patient data
 const mockSharedPatient = {
@@ -361,9 +364,10 @@ const FamilyDashboard = () => {
 
   const renderFamilyMembers = () => (
     <div className="w-full max-w-6xl space-y-6">
+      {/* Family Requests Section */}
       <section className="bg-white rounded-xl shadow-lg p-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-indigo-700">Family Network</h2>
+          <h2 className="text-2xl font-bold text-indigo-700">Family Requests</h2>
           <button
             onClick={() => setShowAddMember(true)}
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2"
@@ -371,6 +375,32 @@ const FamilyDashboard = () => {
             <span className="material-icons text-sm">person_add</span>
             <span>Add Member</span>
           </button>
+        </div>
+        
+        <FamilyRequestManager onUpdate={() => {
+          console.log("Family requests updated");
+          // Force refresh of the family network when requests are updated
+          setFamilyMembers([...familyMembers]);
+        }} />
+      </section>
+      
+      {/* Family Network Section */}
+      <section className="bg-white rounded-xl shadow-lg p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-indigo-700">Family Network</h2>
+        </div>
+        
+        <FamilyNetworkManager onUpdate={() => {
+          console.log("Family network updated");
+          // Force refresh of the family members when network is updated
+          setFamilyMembers([...familyMembers]);
+        }} />
+      </section>
+
+      {/* Legacy Family Network UI */}
+      <section className="bg-white rounded-xl shadow-lg p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-indigo-700">Family Members (Legacy UI)</h2>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -583,7 +613,7 @@ const FamilyDashboard = () => {
       </div>
 
       {/* Add Family Member Modal */}
-      <AddFamilyMember
+      <UpdatedAddFamilyMember
         isOpen={showAddMember}
         onClose={() => setShowAddMember(false)}
         onAdd={handleAddFamilyMember}

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const AuthContext = createContext();
 
@@ -29,17 +29,41 @@ export const AuthProvider = ({ children }) => {
         
         // Fetch user role from Firestore
         try {
+          console.log("AuthContext: Fetching user role for UID:", user.uid);
           const userDocRef = doc(db, "users", user.uid);
           const userDocSnap = await getDoc(userDocRef);
           
           if (userDocSnap.exists()) {
             const userData = userDocSnap.data();
+            console.log("AuthContext: User data found:", userData);
             setUserRole(userData.role);
+            console.log("AuthContext: User role set to:", userData.role);
           } else {
-            setUserRole(null);
+            console.log("AuthContext: No user document found in Firestore");
+            // If no user document exists, create one with patient role
+            try {
+              console.log("AuthContext: Creating new user document with patient role");
+              const userData = {
+                uid: user.uid,
+                name: user.displayName,
+                email: user.email,
+                role: "patient",
+                createdAt: new Date().toISOString()
+              };
+              
+              // Import setDoc at the top of the file
+              const { setDoc } = require('firebase/firestore');
+              
+              await setDoc(doc(db, "users", user.uid), userData);
+              console.log("AuthContext: New user document created successfully");
+              setUserRole("patient");
+            } catch (createError) {
+              console.error("AuthContext: Error creating user document:", createError);
+              setUserRole(null);
+            }
           }
         } catch (error) {
-          console.error("Error fetching user role:", error);
+          console.error("AuthContext: Error fetching user role:", error);
           setUserRole(null);
         }
       } else {

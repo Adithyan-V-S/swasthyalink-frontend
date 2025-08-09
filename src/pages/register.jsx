@@ -51,27 +51,36 @@ const Register = () => {
 
   const handleGoogleSignUp = async () => {
     setError("");
-    const selectedRole = window.prompt("Sign up as 'patient', 'doctor', or 'admin'? Type your choice:", "patient");
-    if (!selectedRole || (selectedRole !== "patient" && selectedRole !== "doctor" && selectedRole !== "admin")) {
-      setError("Please enter 'patient', 'doctor', or 'admin' for role.");
-      return;
-    }
     try {
+      console.log("Starting Google sign up process");
       const result = await signInWithPopup(auth, googleProvider);
-      await setDoc(doc(db, "users", result.user.uid), {
+      console.log("Google sign in successful, user:", result.user.uid);
+      
+      // Always set role as "patient" without asking
+      const userData = {
         uid: result.user.uid,
         name: result.user.displayName,
         email: result.user.email,
-        role: selectedRole
-      });
-      if (selectedRole === "admin") {
-        navigate("/admin");
-      } else if (selectedRole === "doctor") {
-        navigate("/doctordashboard");
-      } else {
-        navigate("/patientdashboard");
+        role: "patient",
+        createdAt: new Date().toISOString()
+      };
+      
+      console.log("Attempting to save user data to Firestore:", userData);
+      
+      try {
+        await setDoc(doc(db, "users", result.user.uid), userData);
+        console.log("User data successfully saved to Firestore");
+      } catch (firestoreError) {
+        console.error("Error saving to Firestore:", firestoreError);
+        setError("Failed to save user data: " + firestoreError.message);
+        return;
       }
+      
+      // Always navigate to patient dashboard
+      console.log("Navigating to patient dashboard");
+      navigate("/patientdashboard");
     } catch (error) {
+      console.error("Google sign up failed:", error);
       setError("Google sign up failed: " + error.message);
     }
   };
@@ -118,12 +127,8 @@ const Register = () => {
       return;
     }
     
-    // Ask for role selection
-    const selectedRole = window.prompt("Register as 'patient', 'doctor', or 'admin'? Type your choice:", "patient");
-    if (!selectedRole || (selectedRole !== "patient" && selectedRole !== "doctor" && selectedRole !== "admin")) {
-      setError("Please enter 'patient', 'doctor', or 'admin' for role.");
-      return;
-    }
+    // Always set role as "patient" without asking
+    const selectedRole = "patient";
     
     try {
       const res = await createUserWithEmailAndPassword(auth, form.email, form.password);
@@ -212,6 +217,17 @@ const Register = () => {
 
   return (
     <main className="relative min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-100 to-pink-100 px-4 py-10 overflow-hidden">
+      {/* Back to Home Button - Same as login page */}
+      <Link 
+        to="/" 
+        className="absolute top-6 left-6 flex items-center gap-2 text-indigo-600 hover:text-indigo-800 transition-colors duration-200"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        <span className="font-medium">Back to Home</span>
+      </Link>
+      
       <EmailVerificationModal
         open={showVerification}
         onResend={handleResend}

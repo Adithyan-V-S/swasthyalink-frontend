@@ -2,8 +2,12 @@ import React, { useState } from 'react';
 import { validateEmail, validatePhone, validateName } from '../utils/validation';
 import Button from './common/Button';
 import Input from './common/Input';
+import { useAuth } from '../contexts/AuthContext';
+import { sendFamilyRequest } from '../services/familyService';
 
 const AddFamilyMember = ({ isOpen, onClose, onAdd }) => {
+  const { currentUser } = useAuth();
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -75,35 +79,45 @@ const AddFamilyMember = ({ isOpen, onClose, onAdd }) => {
     setIsSubmitting(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      const newMember = {
-        id: Date.now(),
-        ...formData,
-        avatar: formData.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=random&color=fff&size=64`,
-        dateAdded: new Date().toISOString(),
-        status: 'pending', // pending, accepted, declined
-        lastAccess: null
-      };
+      // Send family request via API
+      if (!currentUser || !currentUser.email) {
+        throw new Error('Current user email not found');
+      }
 
-      onAdd(newMember);
-      
-      // Reset form
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        relationship: '',
-        accessLevel: 'limited',
-        isEmergencyContact: false,
-        enableChat: true,
-        profilePicture: null
+      const response = await sendFamilyRequest({
+        fromEmail: currentUser.email,
+        toEmail: formData.email,
+        toName: formData.name,
+        relationship: formData.relationship
       });
-      setStep(1);
-      onClose();
+
+      if (response.success) {
+        onAdd({
+          id: response.request.id,
+          ...formData,
+          avatar: formData.profilePicture || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(formData.name) + '&background=random&color=fff&size=64',
+          dateAdded: new Date().toISOString(),
+          status: 'pending',
+          lastAccess: null
+        });
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          relationship: '',
+          accessLevel: 'limited',
+          isEmergencyContact: false,
+          enableChat: true,
+          profilePicture: null
+        });
+        setStep(1);
+        onClose();
+      } else {
+        throw new Error(response.error || 'Failed to send family request');
+      }
     } catch (error) {
-      console.error('Error adding family member:', error);
+      console.error('Error sending family request:', error);
+      alert('Failed to send family request: ' + error.message);
     } finally {
       setIsSubmitting(false);
     }

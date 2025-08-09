@@ -19,6 +19,7 @@ import PatientDashboard from './pages/patientdashboard';
 import DoctorDashboard from './pages/doctordashboard';
 import AdminDashboard from './pages/admindashboard';
 import FamilyDashboard from './pages/familydashboard';
+import UpdatedFamilyDashboard from './pages/UpdatedFamilyDashboard';
 import Settings from './pages/settings';
 import Login from './pages/login';
 import Register from './pages/register';
@@ -44,7 +45,7 @@ function AppContent() {
         <Route path="/patientdashboard" element={<PrivateRoute requiredRole="patient"><PatientDashboard /></PrivateRoute>} />
         <Route path="/doctordashboard" element={<PrivateRoute requiredRole="doctor"><DoctorDashboard /></PrivateRoute>} />
         <Route path="/admindashboard" element={<PrivateRoute requiredRole="admin"><AdminDashboard /></PrivateRoute>} />
-        <Route path="/familydashboard" element={<PrivateRoute requiredRole="family"><FamilyDashboard /></PrivateRoute>} />
+        <Route path="/familydashboard" element={<PrivateRoute requiredRole="family"><UpdatedFamilyDashboard /></PrivateRoute>} />
         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
       </Routes>
       {!hideHeaderFooterOn.includes(location.pathname) && <Footer />}

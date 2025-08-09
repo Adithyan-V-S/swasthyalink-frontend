@@ -30,36 +30,52 @@ const Login = () => {
     setLoading(true);
     setError("");
     try {
+      console.log("Starting Google sign in process");
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
+      console.log("Google sign in successful, user:", user.uid, "email:", user.email);
       
       // Preset admin check for Google sign-in
       if (user.email === "admin@gmail.com") {
+        console.log("Admin user detected, redirecting to admin dashboard");
         setLoading(false);
         setPresetAdmin(true);
         navigate("/admindashboard");
         return;
       }
       
-      // Fetch user role from Firestore
+      // Fetch user data from Firestore
+      console.log("Checking if user exists in Firestore");
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
+      
       if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        const role = userData.role;
-        if (role === "patient") {
-          navigate("/patientdashboard");
-        } else if (role === "doctor") {
-          navigate("/doctordashboard");
-        } else if (role === "admin") {
-          navigate("/admindashboard");
-        } else {
-          setError("Unknown user role. Please contact support.");
-        }
+        console.log("User found in Firestore:", userDocSnap.data());
+        // Always navigate to patient dashboard since we're focusing only on patient role
+        navigate("/patientdashboard");
       } else {
-        setError("User data not found. Please contact support.");
+        console.log("User not found in Firestore, creating new user document");
+        // If user doesn't exist in Firestore yet, create a new user document
+        try {
+          const userData = {
+            uid: user.uid,
+            name: user.displayName,
+            email: user.email,
+            role: "patient",
+            createdAt: new Date().toISOString()
+          };
+          
+          console.log("Saving user data to Firestore:", userData);
+          await setDoc(doc(db, "users", user.uid), userData);
+          console.log("User data successfully saved to Firestore");
+          navigate("/patientdashboard");
+        } catch (error) {
+          console.error("Error saving to Firestore:", error);
+          setError("Failed to create user profile. Please try again.");
+        }
       }
     } catch (err) {
+      console.error("Google sign-in failed:", err);
       setError("Google sign-in failed. Please try again.");
     } finally {
       setLoading(false);
@@ -99,21 +115,12 @@ const Login = () => {
         setLoading(false);
         return;
       }
-      // Fetch user role from Firestore
+      // Fetch user data from Firestore
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
       if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        const role = userData.role;
-        if (role === "patient") {
-          navigate("/patientdashboard");
-        } else if (role === "doctor") {
-          navigate("/doctordashboard");
-        } else if (role === "admin") {
-          navigate("/admindashboard");
-        } else {
-          setError("Unknown user role. Please contact support.");
-        }
+        // Always navigate to patient dashboard since we're focusing only on patient role
+        navigate("/patientdashboard");
       } else {
         setError("User data not found. Please contact support.");
       }
