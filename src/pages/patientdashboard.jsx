@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import QRCode from "react-qr-code";
 import { auth } from "../firebaseConfig";
 import SnakeGame from "./SnakeGame";
+import heroImage from "../assets/images/hero-healthcare.jpg";
 
 const records = [
   {
@@ -392,42 +393,140 @@ const PatientDashboard = () => {
       case 0: // Dashboard
         return (
           <>
-            <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8 mb-8 flex flex-col items-center">
-              <h2 className="text-2xl font-bold text-indigo-700 mb-4 text-center">My Patient QR Code</h2>
-              {uid && (
-                <>
-                  <QRCode value={qrValue} size={140} className="mb-2" />
-                  <div className="text-xs text-gray-500 break-all mt-2">UID: {uid}</div>
-                  <div className="text-xs text-gray-400 break-all">{qrValue}</div>
-                </>
-              )}
-              {!uid && <div className="text-gray-400">Loading QR code...</div>}
+            {/* Top hero + KPI + QR layout inspired by your reference */}
+            <section className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+              {/* Hero card with illustration */}
+              <div className="lg:col-span-6 bg-white rounded-2xl shadow-lg p-8 flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-extrabold text-gray-900">Hey, {mockUser.name.split(' ')[0]}!</h1>
+                  <p className="mt-2 text-gray-600">Let's monitor your health.</p>
+                  <div className="mt-6 flex gap-3">
+                    <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm">HRV 84 ms</span>
+                    <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm">Cholesterol 166 mg/dl</span>
+                  </div>
+                </div>
+                <img src={heroImage} alt="health" className="hidden md:block w-48 h-48 object-cover rounded-xl" />
+              </div>
+
+              {/* Heart Function Efficiency */}
+              <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-800">Heart Function Efficiency</h3>
+                  <button className="text-gray-400">↗</button>
+                </div>
+                <div className="mt-4">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-gray-900">86%</span>
+                    <span className="text-sm text-gray-500">Moderate</span>
+                  </div>
+                  <div className="mt-3 h-3 bg-gray-100 rounded-full">
+                    <div className="h-3 bg-green-400 rounded-full" style={{ width: '86%' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Profile card */}
+              <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6">
+                <div className="flex items-center gap-3">
+                  <img src={mockUser.avatar} alt="profile" className="w-12 h-12 rounded-full" />
+                  <div>
+                    <div className="font-semibold text-gray-900">{mockUser.name}</div>
+                    <div className="text-xs text-gray-500">Diagnosis: Mild Hypertension</div>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-3">
+                  <button className="w-full flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-xl px-3 py-2">
+                    <span className="text-sm text-gray-700">Heart Rate</span>
+                    <span className="text-sm font-semibold text-gray-900">112 bpm ↗</span>
+                  </button>
+                  <button className="w-full flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-xl px-3 py-2">
+                    <span className="text-sm text-gray-700">Glucose Level</span>
+                    <span className="text-sm font-semibold text-gray-900">9.0 mmol/L ↗</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Blood Pressure card */}
+              <div className="lg:col-span-5 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-2xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Blood Pressure</h3>
+                  <span className="text-sm opacity-80">130/82 mmHg</span>
+                </div>
+                <div className="mt-4 h-24 w-full bg-white/10 rounded-lg" />
+              </div>
+
+              {/* Integrated QR card */}
+              <div className="lg:col-span-4 bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center">
+                <h3 className="font-semibold text-gray-800 mb-3">My Patient QR</h3>
+                {uid ? (
+                  <>
+                    <QRCode value={qrValue} size={140} className="mb-2" />
+                    <div className="text-xs text-gray-500 break-all mt-1">UID: {uid}</div>
+                    <div className="text-[10px] text-gray-400 break-all">{qrValue}</div>
+                  </>
+                ) : (
+                  <div className="text-gray-400">Loading QR...</div>
+                )}
+              </div>
+
+              {/* Medication reminder */}
+              <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6">
+                <h3 className="font-semibold text-gray-800">Medication Reminder</h3>
+                <p className="mt-2 text-sm text-gray-600">Take your antihypertensive medication at 3:00 PM</p>
+                <div className="mt-4 flex gap-2">
+                  <button className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm">Mark Done</button>
+                  <button className="px-3 py-2 bg-gray-100 rounded-lg text-sm">Snooze</button>
+                </div>
+              </div>
             </section>
-            <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
-              <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">My Medical Records</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-y-2">
-                  <thead>
-                    <tr className="bg-indigo-100">
-                      <th className="px-4 py-2 text-left text-indigo-700">Date</th>
-                      <th className="px-4 py-2 text-left text-indigo-700">Doctor</th>
-                      <th className="px-4 py-2 text-left text-indigo-700">Diagnosis</th>
-                      <th className="px-4 py-2 text-left text-indigo-700">Prescription</th>
-                      <th className="px-4 py-2 text-left text-indigo-700">Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((rec, idx) => (
-                      <tr key={idx} className="hover:bg-indigo-50 transition-colors">
-                        <td className="px-4 py-2 border-b">{rec.date}</td>
-                        <td className="px-4 py-2 border-b">{rec.doctor}</td>
-                        <td className="px-4 py-2 border-b">{rec.diagnosis}</td>
-                        <td className="px-4 py-2 border-b">{rec.prescription}</td>
-                        <td className="px-4 py-2 border-b">{rec.notes}</td>
+
+            {/* Records + Upcoming appointments row */}
+            <section className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* My Medical Records table */}
+              <div className="lg:col-span-7 bg-white rounded-2xl shadow-lg p-6">
+                <h2 className="text-xl font-bold text-indigo-700 mb-4">My Medical Records</h2>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-separate border-spacing-y-2">
+                    <thead>
+                      <tr className="bg-indigo-100">
+                        <th className="px-4 py-2 text-left text-indigo-700">Date</th>
+                        <th className="px-4 py-2 text-left text-indigo-700">Doctor</th>
+                        <th className="px-4 py-2 text-left text-indigo-700">Diagnosis</th>
+                        <th className="px-4 py-2 text-left text-indigo-700">Prescription</th>
+                        <th className="px-4 py-2 text-left text-indigo-700">Notes</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {records.map((rec, idx) => (
+                        <tr key={idx} className="hover:bg-indigo-50 transition-colors">
+                          <td className="px-4 py-2 border-b">{rec.date}</td>
+                          <td className="px-4 py-2 border-b">{rec.doctor}</td>
+                          <td className="px-4 py-2 border-b">{rec.diagnosis}</td>
+                          <td className="px-4 py-2 border-b">{rec.prescription}</td>
+                          <td className="px-4 py-2 border-b">{rec.notes}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Upcoming appointments mock */}
+              <div className="lg:col-span-5 bg-white rounded-2xl shadow-lg p-6">
+                <h3 className="font-semibold text-gray-800 mb-3">Upcoming Appointments</h3>
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo-100" />
+                    <div>
+                      <div className="font-medium text-gray-900">Sophia Bennett</div>
+                      <div className="text-xs text-gray-500">Cardiologist</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-700">May 19th, 2025</div>
+                    <div className="text-xs text-gray-500">03:30 - 04:00 pm</div>
+                  </div>
+                </div>
               </div>
             </section>
           </>

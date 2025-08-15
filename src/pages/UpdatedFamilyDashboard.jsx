@@ -8,12 +8,14 @@ import FamilyChat from "../components/FamilyChat";
 
 const UpdatedFamilyDashboard = () => {
   const { currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState("network");
+  const [activeTab, setActiveTab] = useState("overview");
   const [showAddMember, setShowAddMember] = useState(false);
   const [familyMembers, setFamilyMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isEmergencyMode, setIsEmergencyMode] = useState(false);
+  const [emergencyAccessExpiry, setEmergencyAccessExpiry] = useState(null);
 
   useEffect(() => {
     if (currentUser) {
@@ -77,6 +79,92 @@ const UpdatedFamilyDashboard = () => {
     }
 
     switch (activeTab) {
+      case "overview":
+        return (
+          <div className="w-full max-w-6xl mx-auto p-6 space-y-6">
+            {/* Header stats */}
+            <section className="bg-white rounded-2xl shadow-lg p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-indigo-500 to-blue-500 text-white rounded-xl px-4 py-3">
+                <div className="text-xs opacity-80">Unread Chats</div>
+                <div className="text-2xl font-bold">3</div>
+              </div>
+              <div className="bg-gradient-to-br from-emerald-500 to-teal-500 text-white rounded-xl px-4 py-3">
+                <div className="text-xs opacity-80">Members</div>
+                <div className="text-2xl font-bold">{familyMembers.length}</div>
+              </div>
+              <div className="bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-xl px-4 py-3">
+                <div className="text-xs opacity-80">Emergency</div>
+                <div className="text-2xl font-bold">{isEmergencyMode ? 'ON' : 'OFF'}</div>
+              </div>
+            </section>
+
+            {/* Two rows layout */}
+            <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Patient overview */}
+              <div className="lg:col-span-7 bg-white rounded-2xl shadow-lg p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-indigo-700">Shared Patient Overview</h3>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <h4 className="font-semibold text-gray-800 mb-3">Basic Info</h4>
+                    <ul className="space-y-2 text-sm">
+                      <li className="flex justify-between"><span className="text-gray-600">Name</span><span className="font-medium">John Doe</span></li>
+                      <li className="flex justify-between"><span className="text-gray-600">Age</span><span className="font-medium">45 years</span></li>
+                      <li className="flex justify-between"><span className="text-gray-600">Blood Group</span><span className="font-medium">O+</span></li>
+                      <li className="flex justify-between"><span className="text-gray-600">Last Updated</span><span className="font-medium">2024-01-15 14:30</span></li>
+                    </ul>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-6">
+                    <h4 className="font-semibold text-gray-800 mb-3">Emergency Contacts</h4>
+                    <div className="space-y-2">
+                      {["Sarah Doe", "Emma Doe"].map((c) => (
+                        <div key={c} className="flex items-center justify-between p-2 bg-white rounded border">
+                          <span className="font-medium">{c}</span>
+                          <span className="text-xs text-gray-500">Emergency</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Emergency control */}
+              <div className="lg:col-span-5 space-y-6">
+                <div className="bg-white rounded-2xl shadow-lg p-8">
+                  <h3 className="text-xl font-bold text-red-700 mb-2">Emergency Access</h3>
+                  <p className="text-sm text-gray-600">
+                    {isEmergencyMode ? 'Emergency access is active.' : 'Activate emergency access to view critical records.'}
+                  </p>
+                  {isEmergencyMode && emergencyAccessExpiry && (
+                    <p className="text-xs text-red-600 mt-2">Expires: {emergencyAccessExpiry.toLocaleString()}</p>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (isEmergencyMode) { setIsEmergencyMode(false); setEmergencyAccessExpiry(null); }
+                      else { const t = new Date(); t.setHours(t.getHours()+24); setEmergencyAccessExpiry(t); setIsEmergencyMode(true); }
+                    }}
+                    className={`mt-4 w-full px-4 py-2 rounded-lg font-semibold transition-colors ${isEmergencyMode ? 'bg-gray-700 text-white hover:bg-gray-800' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                  >
+                    {isEmergencyMode ? 'Deactivate' : 'Activate'}
+                  </button>
+                </div>
+
+                {/* Quick actions */}
+                <div className="bg-white rounded-2xl shadow-lg p-8">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={() => setShowAddMember(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-3 text-sm">Add Member</button>
+                    <button onClick={() => setActiveTab('chat')} className="bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-3 text-sm">Open Chat</button>
+                    <button onClick={() => setActiveTab('network')} className="bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-3 text-sm">View Network</button>
+                    <button onClick={() => setActiveTab('requests')} className="bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-3 text-sm">Requests</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        );
+
       case "network":
         return (
           <div className="w-full max-w-3xl mx-auto p-6">
@@ -98,7 +186,7 @@ const UpdatedFamilyDashboard = () => {
             </div>
           </div>
         );
-        
+
       case "requests":
         return (
           <div className="w-full max-w-3xl mx-auto p-6">
@@ -120,7 +208,7 @@ const UpdatedFamilyDashboard = () => {
             </div>
           </div>
         );
-        
+
       case "chat":
         return (
           <div className="w-full max-w-3xl mx-auto p-6">
@@ -153,7 +241,7 @@ const UpdatedFamilyDashboard = () => {
             </div>
           </div>
         );
-        
+
       default:
         return (
           <div className="w-full max-w-3xl mx-auto p-6">
@@ -166,6 +254,11 @@ const UpdatedFamilyDashboard = () => {
   };
 
   const navLinks = [
+    {
+      label: "Overview",
+      value: "overview",
+      icon: <span className="material-icons">dashboard</span>
+    },
     {
       label: "Family Network",
       value: "network",
@@ -200,10 +293,10 @@ const UpdatedFamilyDashboard = () => {
 
       {/* Main Layout */}
       <div className="flex">
-        {/* Sidebar */}
+        {/* Sidebar (mirrored to the right) */}
         <aside
-          className={`bg-white border-r border-gray-200 w-64 fixed inset-y-0 left-0 transform ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          className={`bg-white border-l border-gray-200 w-64 fixed inset-y-0 right-0 transform ${
+            sidebarOpen ? "translate-x-0" : "translate-x-full"
           } md:translate-x-0 transition-transform duration-300 ease-in-out z-30 md:z-0 md:static h-full`}
         >
           <div className="p-6 border-b border-gray-200 hidden md:block">
@@ -232,7 +325,7 @@ const UpdatedFamilyDashboard = () => {
         </aside>
         
         {/* Main content */}
-        <div className="flex-1 md:ml-64 ml-0">
+        <div className="flex-1 md:mr-64 mr-0">
           {renderMainContent()}
         </div>
       </div>

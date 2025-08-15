@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import FamilyChat from "../components/FamilyChat";
 import AddFamilyMember from "../components/AddFamilyMember";
@@ -206,89 +206,98 @@ const FamilyDashboard = () => {
   }
 
   const renderOverview = () => (
-    <div className="w-full max-w-6xl space-y-8">
-      {/* Patient Overview */}
-      <section className="bg-white rounded-xl shadow-lg p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-indigo-700">Patient Overview</h2>
-          <div className="flex items-center gap-4">
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getAccessLevelColor(mockFamilyMember.accessLevel)}`}>
-              {mockFamilyMember.accessLevel} Access
-            </span>
-            {isEmergencyMode && (
-              <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 animate-pulse">
-                Emergency Mode Active
-              </span>
-            )}
-          </div>
+    <div className="w-full max-w-7xl space-y-8">
+      {/* Header bar with quick stats */}
+      <section className="bg-white rounded-2xl shadow-lg p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900">Family Dashboard</h2>
+          <p className="text-gray-500">Stay connected and manage shared health with style.</p>
         </div>
-        
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="bg-gray-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Name:</span>
-                <span className="font-medium">{mockSharedPatient.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Age:</span>
-                <span className="font-medium">{mockSharedPatient.age} years</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Blood Group:</span>
-                <span className="font-medium">{mockSharedPatient.bloodGroup}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Last Updated:</span>
-                <span className="font-medium">{mockSharedPatient.lastUpdated}</span>
-              </div>
-            </div>
+        <div className="grid grid-cols-3 gap-3 w-full md:w-auto">
+          <div className="bg-gradient-to-br from-indigo-500 to-blue-500 text-white rounded-xl px-4 py-3">
+            <div className="text-xs opacity-80">Unread Chats</div>
+            <div className="text-2xl font-bold">3</div>
           </div>
-          
-          <div className="bg-gray-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Emergency Contacts</h3>
-            <div className="space-y-2">
-              {mockSharedPatient.emergencyContacts.map((contact, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border">
-                  <span className="font-medium">{contact}</span>
-                  <span className="text-sm text-gray-500">Emergency Contact</span>
-                </div>
-              ))}
-            </div>
+          <div className="bg-gradient-to-br from-emerald-500 to-teal-500 text-white rounded-xl px-4 py-3">
+            <div className="text-xs opacity-80">Members</div>
+            <div className="text-2xl font-bold">{familyMembers.length}</div>
+          </div>
+          <div className="bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-xl px-4 py-3">
+            <div className="text-xs opacity-80">Emergency</div>
+            <div className="text-2xl font-bold">{isEmergencyMode ? 'ON' : 'OFF'}</div>
           </div>
         </div>
       </section>
 
-      {/* Emergency Access Control */}
-      <section className="bg-white rounded-xl shadow-lg p-8">
-        <h2 className="text-2xl font-bold text-indigo-700 mb-6">Emergency Access</h2>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-red-800 mb-2">Emergency Mode</h3>
-              <p className="text-red-700">
-                {isEmergencyMode 
-                  ? "Emergency access is currently active. You can view all emergency health records."
-                  : "Activate emergency access to view critical health information in case of emergency."
-                }
-              </p>
-              {isEmergencyMode && emergencyAccessExpiry && (
-                <p className="text-sm text-red-600 mt-2">
-                  Access expires: {emergencyAccessExpiry.toLocaleString()}
-                </p>
+      {/* Patient Overview + Emergency + Quick Actions */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Patient Overview Card */}
+        <div className="lg:col-span-6 bg-white rounded-2xl shadow-lg p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-indigo-700">Patient Overview</h3>
+            <div className="flex items-center gap-3">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getAccessLevelColor(mockFamilyMember.accessLevel)}`}>
+                {mockFamilyMember.accessLevel} Access
+              </span>
+              {isEmergencyMode && (
+                <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 animate-pulse">
+                  Emergency Active
+                </span>
               )}
             </div>
-            <button
-              onClick={isEmergencyMode ? deactivateEmergencyAccess : activateEmergencyAccess}
-              className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-                isEmergencyMode 
-                  ? "bg-gray-600 text-white hover:bg-gray-700"
-                  : "bg-red-600 text-white hover:bg-red-700"
-              }`}
-            >
-              {isEmergencyMode ? "Deactivate Emergency Access" : "Activate Emergency Access"}
-            </button>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-6">
+            <div className="bg-gray-50 rounded-xl p-6">
+              <h4 className="font-semibold text-gray-800 mb-3">Basic Information</h4>
+              <ul className="space-y-2 text-sm">
+                <li className="flex justify-between"><span className="text-gray-600">Name</span><span className="font-medium">{mockSharedPatient.name}</span></li>
+                <li className="flex justify-between"><span className="text-gray-600">Age</span><span className="font-medium">{mockSharedPatient.age} years</span></li>
+                <li className="flex justify-between"><span className="text-gray-600">Blood Group</span><span className="font-medium">{mockSharedPatient.bloodGroup}</span></li>
+                <li className="flex justify-between"><span className="text-gray-600">Last Updated</span><span className="font-medium">{mockSharedPatient.lastUpdated}</span></li>
+              </ul>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-6">
+              <h4 className="font-semibold text-gray-800 mb-3">Emergency Contacts</h4>
+              <div className="space-y-2">
+                {mockSharedPatient.emergencyContacts.map((contact, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border">
+                    <span className="font-medium">{contact}</span>
+                    <span className="text-xs text-gray-500">Emergency Contact</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Emergency Control Card */}
+        <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-8">
+          <h3 className="text-xl font-bold text-red-700 mb-4">Emergency Access</h3>
+          <p className="text-sm text-gray-600">
+            {isEmergencyMode
+              ? "Emergency access is active. You can view critical records."
+              : "Activate emergency access to view critical records when needed."}
+          </p>
+          {isEmergencyMode && emergencyAccessExpiry && (
+            <p className="text-xs text-red-600 mt-2">Expires: {emergencyAccessExpiry.toLocaleString()}</p>
+          )}
+          <button
+            onClick={isEmergencyMode ? deactivateEmergencyAccess : activateEmergencyAccess}
+            className={`mt-4 w-full px-4 py-2 rounded-lg font-semibold transition-colors ${isEmergencyMode ? 'bg-gray-700 text-white hover:bg-gray-800' : 'bg-red-600 text-white hover:bg-red-700'}`}
+          >
+            {isEmergencyMode ? 'Deactivate' : 'Activate'}
+          </button>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-8">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setShowAddMember(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-3 text-sm">Add Member</button>
+            <button onClick={() => setActiveIdx(3)} className="bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-3 text-sm">Open Chat</button>
+            <button onClick={() => setActiveIdx(1)} className="bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-3 text-sm">View Records</button>
+            <button onClick={() => setActiveIdx(2)} className="bg-gray-100 hover:bg-gray-200 rounded-xl px-4 py-3 text-sm">Network</button>
           </div>
         </div>
       </section>
@@ -575,12 +584,27 @@ const FamilyDashboard = () => {
         <div>
           {/* Family Member Profile Section */}
           <div className="flex flex-col items-center mb-8">
-            <img src={mockFamilyMember.avatar} alt="avatar" className="w-16 h-16 rounded-full border-2 border-indigo-500 mb-3" />
-            <div className="font-semibold text-indigo-700 text-center">{mockFamilyMember.name}</div>
+            <div className="relative">
+              <img src={mockFamilyMember.avatar} alt="avatar" className="w-16 h-16 rounded-full border-2 border-indigo-500" />
+              <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full" />
+            </div>
+            <div className="mt-3 font-semibold text-indigo-700 text-center">{mockFamilyMember.name}</div>
             <div className="text-xs text-gray-500 text-center">{mockFamilyMember.relationship}</div>
           </div>
           
-          <div className="text-xl font-bold text-indigo-700 mb-6 text-center">Family Access</div>
+          <div className="text-xl font-bold text-indigo-700 mb-4 text-center">Family Access</div>
+
+          {/* Mini stats */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="bg-indigo-50 text-indigo-800 rounded-lg p-2 text-center">
+              <div className="text-[10px] uppercase">Members</div>
+              <div className="text-sm font-bold">{familyMembers.length}</div>
+            </div>
+            <div className="bg-amber-50 text-amber-800 rounded-lg p-2 text-center">
+              <div className="text-[10px] uppercase">Emergency</div>
+              <div className="text-sm font-bold">{isEmergencyMode ? 'On' : 'Off'}</div>
+            </div>
+          </div>
           
           {sidebarLinks.map((link, idx) => (
             <button
