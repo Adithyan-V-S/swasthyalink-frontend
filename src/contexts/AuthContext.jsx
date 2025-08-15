@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebaseConfig';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 const AuthContext = createContext();
 
@@ -38,6 +38,11 @@ export const AuthProvider = ({ children }) => {
             console.log("AuthContext: User data found:", userData);
             setUserRole(userData.role);
             console.log("AuthContext: User role set to:", userData.role);
+
+            // Update lastActive for presence
+            try {
+              await updateDoc(userDocRef, { lastActive: serverTimestamp() });
+            } catch {}
           } else {
             console.log("AuthContext: No user document found in Firestore");
             // If no user document exists, create one with patient role
@@ -48,11 +53,9 @@ export const AuthProvider = ({ children }) => {
                 name: user.displayName,
                 email: user.email,
                 role: "patient",
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                lastActive: serverTimestamp()
               };
-              
-              // Import setDoc at the top of the file
-              const { setDoc } = require('firebase/firestore');
               
               await setDoc(doc(db, "users", user.uid), userData);
               console.log("AuthContext: New user document created successfully");

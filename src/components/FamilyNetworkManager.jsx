@@ -341,6 +341,22 @@ const FamilyNetworkManager = ({ onUpdate }) => {
               
               <div className="flex justify-end space-x-2 pt-2">
                 <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    try {
+                      localStorage.setItem('startChatMember', JSON.stringify({ uid: member.uid, email: member.email }));
+                      // Navigate to chat tab if the UI supports it; otherwise, user can open Chat manually
+                      alert('Opening chat... Go to the Family Chat tab to start messaging.');
+                    } catch (e) {
+                      console.error('Failed to store startChat target', e);
+                    }
+                  }}
+                  disabled={!member.uid}
+                >
+                  Start Chat
+                </Button>
+                <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => handleEditMember(member)}

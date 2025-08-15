@@ -1,154 +1,168 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { formatDate } from '../utils/helpers';
+import {
+  subscribeToConversations,
+  subscribeToMessages,
+  getOrCreateConversation,
+  sendMessage as sendChatMessage,
+  markAsRead,
+  getOtherParticipant,
+} from '../services/chatService';
+import { getFamilyNetwork as getFamilyNetworkLegacy } from '../services/familyService';
 
-// Mock chat data
-const mockChatData = {
-  conversations: [
-    {
-      id: 1,
-      participantId: 'patient_john',
-      participantName: 'John Doe (Patient)',
-      participantAvatar: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=64',
-      lastMessage: 'How are you feeling today?',
-      lastMessageTime: '2024-01-15 14:30',
-      unreadCount: 2,
-      isOnline: true,
-      relationship: 'Patient'
-    },
-    {
-      id: 2,
-      participantId: 'family_emma',
-      participantName: 'Emma Doe',
-      participantAvatar: 'https://ui-avatars.com/api/?name=Emma+Doe&background=10b981&color=fff&size=64',
-      lastMessage: 'Dad\'s appointment is tomorrow',
-      lastMessageTime: '2024-01-15 12:15',
-      unreadCount: 0,
-      isOnline: false,
-      relationship: 'Daughter'
-    },
-    {
-      id: 3,
-      participantId: 'doctor_sharma',
-      participantName: 'Dr. A. Sharma',
-      participantAvatar: 'https://ui-avatars.com/api/?name=Dr+Sharma&background=8b5cf6&color=fff&size=64',
-      lastMessage: 'Please continue the medication',
-      lastMessageTime: '2024-01-14 16:45',
-      unreadCount: 1,
-      isOnline: true,
-      relationship: 'Doctor'
-    }
-  ],
-  messages: {
-    1: [
-      {
-        id: 1,
-        senderId: 'patient_john',
-        senderName: 'John Doe',
-        message: 'Hi Sarah, I wanted to update you on my health status.',
-        timestamp: '2024-01-15 10:00',
-        type: 'text',
-        isRead: true
-      },
-      {
-        id: 2,
-        senderId: 'family_sarah',
-        senderName: 'Sarah Doe',
-        message: 'Thank you for keeping me updated. How are you feeling today?',
-        timestamp: '2024-01-15 10:15',
-        type: 'text',
-        isRead: true
-      },
-      {
-        id: 3,
-        senderId: 'patient_john',
-        senderName: 'John Doe',
-        message: 'Much better! The new medication is working well.',
-        timestamp: '2024-01-15 14:20',
-        type: 'text',
-        isRead: false
-      },
-      {
-        id: 4,
-        senderId: 'patient_john',
-        senderName: 'John Doe',
-        message: 'My blood pressure readings have been stable.',
-        timestamp: '2024-01-15 14:30',
-        type: 'text',
-        isRead: false
-      }
-    ],
-    2: [
-      {
-        id: 1,
-        senderId: 'family_emma',
-        senderName: 'Emma Doe',
-        message: 'Hi Mom, just reminding you that Dad\'s appointment is tomorrow at 2 PM.',
-        timestamp: '2024-01-15 12:15',
-        type: 'text',
-        isRead: true
-      }
-    ],
-    3: [
-      {
-        id: 1,
-        senderId: 'doctor_sharma',
-        senderName: 'Dr. A. Sharma',
-        message: 'Hello, I\'ve reviewed John\'s latest test results. Please continue the current medication regimen.',
-        timestamp: '2024-01-14 16:45',
-        type: 'text',
-        isRead: false
-      }
-    ]
-  }
+// Small helper for Firestore Timestamp/Date/string
+const toDate = (ts) => {
+  if (!ts) return null;
+  if (typeof ts?.toDate === 'function') return ts.toDate();
+  if (typeof ts === 'string' || ts instanceof Date) return new Date(ts);
+  return null;
 };
 
 const FamilyChat = () => {
-  const [selectedConversation, setSelectedConversation] = useState(null);
-  const [conversations, setConversations] = useState(mockChatData.conversations);
-  const [messages, setMessages] = useState(mockChatData.messages);
-  const [newMessage, setNewMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const { currentUser } = useAuth();
+
+  // Left pane - conversations and family members
+  const [conversations, setConversations] = useState([]); // Firestore conversations
+  const [familyMembers, setFamilyMembers] = useState([]); // From family network
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Right pane - messages
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const conversationUnsubRef = useRef(null);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Load family network and subscribe to chat list
   useEffect(() => {
-    scrollToBottom();
+    if (!currentUser) return;
+
+    // Subscribe to user's conversations
+    const unsubConvos = subscribeToConversations(currentUser.uid, (items) => {
+      setConversations(items || []);
+    });
+
+    // Fetch family network members (to allow starting new chats)
+    (async () => {
+      try {
+        const res = await getFamilyNetworkLegacy(currentUser.email);
+        const members = res?.network?.members || [];
+        setFamilyMembers(members);
+
+        // Optional: auto-start chat if a member was selected elsewhere
+        try {
+          const raw = localStorage.getItem('startChatMember');
+          if (raw) {
+            const target = JSON.parse(raw);
+            // find by uid or email
+            const match = members.find(m => (target.uid && m.uid === target.uid) || (target.email && m.email === target.email));
+            if (match && match.uid) {
+              await startChatWithMember(match);
+              localStorage.removeItem('startChatMember');
+            }
+          }
+        } catch {}
+      } catch (e) {
+        console.error('Failed to load family network:', e);
+        setFamilyMembers([]);
+      }
+    })();
+
+    return () => {
+      unsubConvos && unsubConvos();
+      if (conversationUnsubRef.current) conversationUnsubRef.current();
+    };
+  }, [currentUser]);
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedConversation]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Filter conversations by search
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery) return conversations;
+    const q = searchQuery.toLowerCase();
+    return conversations.filter((c) => {
+      const other = getOtherParticipant(c, currentUser?.uid);
+      return (
+        (other?.name || '').toLowerCase().includes(q) ||
+        (other?.email || '').toLowerCase().includes(q)
+      );
+    });
+  }, [conversations, searchQuery, currentUser]);
+
+  const openConversation = (conversation) => {
+    setSelectedConversation(conversation);
+    // Mark as read for current user
+    if (currentUser) {
+      markAsRead({ conversationId: conversation.id, userUid: currentUser.uid }).catch(() => {});
+    }
+    // Subscribe to messages in this conversation
+    if (conversationUnsubRef.current) conversationUnsubRef.current();
+    conversationUnsubRef.current = subscribeToMessages(conversation.id, (items) => {
+      setMessages(items || []);
+    });
   };
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation) return;
+  const startChatWithMember = async (member) => {
+    if (!currentUser?.uid || !member?.uid) return;
+    try {
+      const currentInfo = {
+        name: currentUser.displayName || currentUser.email?.split('@')[0] || 'You',
+        email: currentUser.email,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.displayName || currentUser.email)}&background=3b82f6&color=fff&size=64`,
+      };
+      const otherInfo = {
+        name: member.name || member.email,
+        email: member.email,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || member.email)}&background=10b981&color=fff&size=64`,
+      };
 
-    const newMsg = {
-      id: Date.now(),
-      senderId: 'family_sarah', // Current user
-      senderName: 'Sarah Doe',
-      message: newMessage.trim(),
-      timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      type: 'text',
-      isRead: true
-    };
+      const { id: convoId } = await getOrCreateConversation({
+        currentUid: currentUser.uid,
+        otherUid: member.uid,
+        currentUserInfo: currentInfo,
+        otherUserInfo: otherInfo,
+      });
 
-    // Add message to conversation
-    setMessages(prev => ({
-      ...prev,
-      [selectedConversation.id]: [...(prev[selectedConversation.id] || []), newMsg]
-    }));
+      // After ensuring conversation exists, select it from current list (or create one locally)
+      const existing = conversations.find((c) => c.id === convoId);
+      if (existing) {
+        openConversation(existing);
+      } else {
+        // Create a minimal local conversation object until snapshot updates
+        const newConvo = {
+          id: convoId,
+          participants: [currentUser.uid, member.uid],
+          participantInfo: { [currentUser.uid]: currentInfo, [member.uid]: otherInfo },
+          lastMessage: '',
+          lastMessageTime: new Date(),
+          unread: { [currentUser.uid]: 0, [member.uid]: 0 },
+        };
+        openConversation(newConvo);
+      }
+    } catch (e) {
+      console.error('Failed to start chat:', e);
+      alert('Failed to start chat. Please try again.');
+    }
+  };
 
-    // Update conversation last message
-    setConversations(prev => prev.map(conv => 
-      conv.id === selectedConversation.id 
-        ? { ...conv, lastMessage: newMessage.trim(), lastMessageTime: newMsg.timestamp }
-        : conv
-    ));
-
-    setNewMessage('');
-    inputRef.current?.focus();
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation || !currentUser) return;
+    try {
+      await sendChatMessage({
+        conversationId: selectedConversation.id,
+        senderId: currentUser.uid,
+        text: newMessage.trim(),
+      });
+      setNewMessage('');
+      inputRef.current?.focus();
+    } catch (e) {
+      console.error('Failed to send message:', e);
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -158,19 +172,8 @@ const FamilyChat = () => {
     }
   };
 
-  const markAsRead = (conversationId) => {
-    setConversations(prev => prev.map(conv => 
-      conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
-    ));
-  };
-
-  const filteredConversations = conversations.filter(conv =>
-    conv.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.relationship.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const getRelationshipColor = (relationship) => {
-    switch (relationship.toLowerCase()) {
+    switch ((relationship || '').toLowerCase()) {
       case 'patient': return 'bg-blue-100 text-blue-800';
       case 'doctor': return 'bg-purple-100 text-purple-800';
       case 'daughter':
@@ -180,15 +183,67 @@ const FamilyChat = () => {
     }
   };
 
+  const renderConversationItem = (c) => {
+    const other = getOtherParticipant(c, currentUser?.uid);
+    const lastTime = toDate(c.lastMessageTime);
+    const unreadCount = c.unread?.[currentUser?.uid] || 0;
+
+    return (
+      <div
+        key={c.id}
+        onClick={() => openConversation(c)}
+        className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
+          selectedConversation?.id === c.id ? 'bg-indigo-50 border-indigo-200' : ''
+        }`}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <img
+              src={other?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(other?.name || other?.email || 'User')}&background=10b981&color=fff&size=64`}
+              alt={other?.name || other?.email}
+              className="w-12 h-12 rounded-full"
+            />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-gray-900 truncate">
+                {other?.name || other?.email}
+              </h4>
+              {unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between mt-1">
+              <span className={`text-xs px-2 py-1 rounded-full ${getRelationshipColor(other?.relationship)}`}>
+                {other?.relationship || 'Family'}
+              </span>
+              <span className="text-xs text-gray-500">
+                {lastTime ? formatDate(lastTime, 'TIME_ONLY') : ''}
+              </span>
+            </div>
+
+            <p className="text-sm text-gray-600 truncate mt-1">
+              {c.lastMessage || 'Start a conversation'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="w-full max-w-6xl bg-white rounded-xl shadow-lg overflow-hidden">
-      <div className="flex h-[600px]">
+    <div className="w-full max-w-none bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="flex h-[80vh] min-h-[700px]">
         {/* Conversations List */}
         <div className="w-1/3 border-r border-gray-200 flex flex-col">
           {/* Header */}
           <div className="p-4 border-b border-gray-200 bg-indigo-50">
             <h3 className="text-lg font-semibold text-indigo-700 mb-3">Family Chat</h3>
-            
+
             {/* Search */}
             <div className="relative">
               <input
@@ -202,59 +257,34 @@ const FamilyChat = () => {
             </div>
           </div>
 
+          {/* Start new chat with a family member */}
+          <div className="p-3 border-b border-gray-100 bg-white">
+            <div className="text-xs text-gray-500 mb-2">Start new chat</div>
+            <div className="flex -space-x-2 overflow-hidden">
+              {(familyMembers || []).slice(0, 6).map((m) => (
+                <button
+                  key={m.email}
+                  title={`Chat with ${m.name || m.email}`}
+                  onClick={() => startChatWithMember(m)}
+                  className="inline-block rounded-full border border-white hover:scale-105 transition-transform"
+                >
+                  <img
+                    className="h-8 w-8 rounded-full"
+                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(m.name || m.email)}&background=10b981&color=fff&size=64`}
+                    alt={m.name || m.email}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Conversations */}
           <div className="flex-1 overflow-y-auto">
-            {filteredConversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                onClick={() => {
-                  setSelectedConversation(conversation);
-                  markAsRead(conversation.id);
-                }}
-                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                  selectedConversation?.id === conversation.id ? 'bg-indigo-50 border-indigo-200' : ''
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="relative">
-                    <img
-                      src={conversation.participantAvatar}
-                      alt={conversation.participantName}
-                      className="w-12 h-12 rounded-full"
-                    />
-                    {conversation.isOnline && (
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-900 truncate">
-                        {conversation.participantName}
-                      </h4>
-                      {conversation.unreadCount > 0 && (
-                        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                          {conversation.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center justify-between mt-1">
-                      <span className={`text-xs px-2 py-1 rounded-full ${getRelationshipColor(conversation.relationship)}`}>
-                        {conversation.relationship}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {formatDate(conversation.lastMessageTime, 'TIME_ONLY')}
-                      </span>
-                    </div>
-                    
-                    <p className="text-sm text-gray-600 truncate mt-1">
-                      {conversation.lastMessage}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {filteredConversations.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500">No conversations yet.</div>
+            ) : (
+              filteredConversations.map((conversation) => renderConversationItem(conversation))
+            )}
           </div>
         </div>
 
@@ -264,56 +294,51 @@ const FamilyChat = () => {
             <>
               {/* Chat Header */}
               <div className="p-4 border-b border-gray-200 bg-gray-50">
-                <div className="flex items-center space-x-3">
-                  <img
-                    src={selectedConversation.participantAvatar}
-                    alt={selectedConversation.participantName}
-                    className="w-10 h-10 rounded-full"
-                  />
-                  <div>
-                    <h4 className="font-semibold text-gray-900">
-                      {selectedConversation.participantName}
-                    </h4>
-                    <div className="flex items-center space-x-2">
-                      <span className={`text-xs px-2 py-1 rounded-full ${getRelationshipColor(selectedConversation.relationship)}`}>
-                        {selectedConversation.relationship}
-                      </span>
-                      <span className={`text-xs ${selectedConversation.isOnline ? 'text-green-600' : 'text-gray-500'}`}>
-                        {selectedConversation.isOnline ? 'Online' : 'Offline'}
-                      </span>
+                {(() => {
+                  const other = getOtherParticipant(selectedConversation, currentUser?.uid);
+                  return (
+                    <div className="flex items-center space-x-3">
+                      <img
+                        src={other?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(other?.name || other?.email || 'User')}&background=10b981&color=fff&size=64`}
+                        alt={other?.name || other?.email}
+                        className="w-10 h-10 rounded-full"
+                      />
+                      <div>
+                        <h4 className="font-semibold text-gray-900">
+                          {other?.name || other?.email}
+                        </h4>
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-xs px-2 py-1 rounded-full ${getRelationshipColor(other?.relationship)}`}>
+                            {other?.relationship || 'Family'}
+                          </span>
+                          <span className="text-xs text-gray-500">Conversation</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {(messages[selectedConversation.id] || []).map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.senderId === 'family_sarah' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                        message.senderId === 'family_sarah'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-gray-200 text-gray-900'
-                      }`}
-                    >
-                      {message.senderId !== 'family_sarah' && (
-                        <p className="text-xs font-semibold mb-1 opacity-75">
-                          {message.senderName}
+                {(messages || []).map((message) => {
+                  const isMe = message.senderId === currentUser?.uid;
+                  const when = toDate(message.timestamp);
+                  return (
+                    <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                          isMe ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-900'
+                        }`}
+                      >
+                        <p className="text-sm">{message.text}</p>
+                        <p className={`text-xs mt-1 ${isMe ? 'text-indigo-200' : 'text-gray-500'}`}>
+                          {when ? formatDate(when, 'TIME_ONLY') : ''}
                         </p>
-                      )}
-                      <p className="text-sm">{message.message}</p>
-                      <p className={`text-xs mt-1 ${
-                        message.senderId === 'family_sarah' ? 'text-indigo-200' : 'text-gray-500'
-                      }`}>
-                        {formatDate(message.timestamp, 'TIME_ONLY')}
-                      </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -345,10 +370,10 @@ const FamilyChat = () => {
               <div className="text-center">
                 <span className="material-icons text-6xl text-gray-400 mb-4">chat</span>
                 <h3 className="text-lg font-semibold text-gray-600 mb-2">
-                  Select a conversation to start chatting
+                  Select a conversation or start a new chat
                 </h3>
                 <p className="text-gray-500">
-                  Connect with family members, patients, and healthcare providers
+                  Connect with your family members in your network
                 </p>
               </div>
             </div>
