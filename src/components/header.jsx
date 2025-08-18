@@ -91,7 +91,7 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg sticky top-0 z-50">
+    <header className="sticky top-0 z-[60] backdrop-blur-sm bg-white/40 supports-[backdrop-filter]:bg-white/30 border-b border-white/40 shadow">
       <nav className="w-full flex flex-wrap items-center justify-between py-2 px-6 min-h-[50px]">
         {/* Left section: hamburger + logo */}
         <div className="flex items-center space-x-3 h-full">
@@ -103,10 +103,10 @@ const Header = () => {
               aria-label="Open sidebar menu"
               style={{lineHeight: 0}}
             >
-              <span className="material-icons text-white text-2xl leading-none">menu</span>
+              <span className="material-icons text-blue-600 text-2xl leading-none">menu</span>
             </button>
           )}
-          <span className="text-white text-xl font-bold tracking-wide">Swasthyalink</span>
+          <span className="text-blue-600 drop-shadow-sm text-xl font-bold tracking-wide">Swasthyalink</span>
         </div>
         {/* Right section: notifications, profile menu, login/register */}
         <div className="flex flex-1 items-center justify-end">
@@ -126,13 +126,13 @@ const Header = () => {
                     onClick={handleProfileMenu}
                     aria-label="Open profile menu"
                   >
-                    <span className="material-icons text-white text-2xl">account_circle</span>
+                    <span className="material-icons text-blue-600 text-2xl">account_circle</span>
                   </button>
                   {profileMenuOpen && (
                     <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg z-50 py-2">
-                      <button onClick={handleProfile} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-100">Profile</button>
-                      <button onClick={handleSettings} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-100">Settings</button>
-                      <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-100">Logout</button>
+                      <button onClick={handleProfile} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-50">Profile</button>
+                      <button onClick={handleSettings} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-50">Settings</button>
+                      <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50">Logout</button>
                     </div>
                   )}
                 </div>

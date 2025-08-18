@@ -3,6 +3,7 @@ import QRCode from "react-qr-code";
 import { auth } from "../firebaseConfig";
 import SnakeGame from "./SnakeGame";
 import heroImage from "../assets/images/hero-healthcare.jpg";
+import { useAuth } from "../contexts/AuthContext";
 
 const records = [
   {
@@ -28,10 +29,13 @@ const records = [
   },
 ];
 
-const mockUser = {
-  name: "John Doe",
-  email: "john.doe@example.com",
-  avatar: "https://ui-avatars.com/api/?name=John+Doe&background=4f46e5&color=fff&size=64"
+// Derive a user object from Firebase auth when available; fall back to demo values
+const useCurrentUser = () => {
+  const { currentUser } = useAuth();
+  const displayName = currentUser?.displayName || currentUser?.email?.split("@")[0] || "John Doe";
+  const email = currentUser?.email || "john.doe@example.com";
+  const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=4f46e5&color=fff&size=64`;
+  return { name: displayName, email, avatar };
 };
 
 // Mock family members data
@@ -132,6 +136,7 @@ const helpSupportLink = { label: "Help & Support", icon: (
 
 const PatientDashboard = () => {
   const [uid, setUid] = useState("");
+  const currentUserInfo = useCurrentUser();
   const [activeIdx, setActiveIdx] = useState(0);
   const [familyMembers, setFamilyMembers] = useState(mockFamilyMembers);
   const [notifications, setNotifications] = useState(mockNotifications);
@@ -398,7 +403,8 @@ const PatientDashboard = () => {
               {/* Hero card with illustration */}
               <div className="lg:col-span-6 bg-white rounded-2xl shadow-lg p-8 flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-extrabold text-gray-900">Hey, {mockUser.name.split(' ')[0]}!</h1>
+                  {/* Use current user's first name if available */}
+                  <h1 className="text-3xl font-extrabold text-gray-900">Hey, {useCurrentUser().name.split(' ')[0]}!</h1>
                   <p className="mt-2 text-gray-600">Let's monitor your health.</p>
                   <div className="mt-6 flex gap-3">
                     <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm">HRV 84 ms</span>
@@ -428,9 +434,9 @@ const PatientDashboard = () => {
               {/* Profile card */}
               <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6">
                 <div className="flex items-center gap-3">
-                  <img src={mockUser.avatar} alt="profile" className="w-12 h-12 rounded-full" />
+                  <img src={currentUserInfo.avatar} alt="profile" className="w-12 h-12 rounded-full" />
                   <div>
-                    <div className="font-semibold text-gray-900">{mockUser.name}</div>
+                    <div className="font-semibold text-gray-900">{currentUserInfo.name}</div>
                     <div className="text-xs text-gray-500">Diagnosis: Mild Hypertension</div>
                   </div>
                 </div>
@@ -618,9 +624,9 @@ const PatientDashboard = () => {
         <div>
           {/* User Profile Section */}
           <div className="flex flex-col items-center mb-8">
-            <img src={mockUser.avatar} alt="avatar" className="w-16 h-16 rounded-full border-2 border-indigo-500 mb-2" />
-            <div className="font-semibold text-indigo-700 whitespace-nowrap">{mockUser.name}</div>
-            <div className="text-xs text-gray-500 whitespace-nowrap">{mockUser.email}</div>
+            <img src={currentUserInfo.avatar} alt="avatar" className="w-16 h-16 rounded-full border-2 border-indigo-500 mb-2" />
+            <div className="font-semibold text-indigo-700 whitespace-nowrap">{currentUserInfo.name}</div>
+            <div className="text-xs text-gray-500 whitespace-nowrap">{currentUserInfo.email}</div>
           </div>
           <div className="text-2xl font-bold text-indigo-700 mb-6 text-center">Menu</div>
           {sidebarLinks.map((link, idx) => (

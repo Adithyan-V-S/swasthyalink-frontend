@@ -1,8 +1,9 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 const Sidebar = ({ open, onClose }) => {
   const { userRole } = useAuth();
+  const location = useLocation();
 
   // Show different menu items based on user role
   const getMenuItems = () => {
@@ -34,21 +35,21 @@ const Sidebar = ({ open, onClose }) => {
 
   return (
     <div
-      className={`fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-40 transform transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`}
+      className={`fixed top-0 left-0 h-screen w-64 z-[100] bg-slate-900 border-r border-slate-800 shadow-2xl text-white transform transition-transform duration-200 flex flex-col ${open ? 'translate-x-0' : '-translate-x-full'}`}
       onMouseLeave={onClose}
     >
-      <div className="flex items-center justify-between px-4 py-4 border-b">
-        <span className="text-xl font-bold text-indigo-700">Menu</span>
-        <button onClick={onClose} className="text-gray-500 hover:text-red-500">
+      <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800">
+        <span className="text-xl font-bold text-white/90">Menu</span>
+        <button onClick={onClose} className="text-white/70 hover:text-red-400">
           <span className="material-icons">close</span>
         </button>
       </div>
-      <ul className="flex flex-col gap-2 p-4 text-indigo-700 font-medium">
+      <ul className="flex-1 overflow-y-auto bg-gray-100 flex flex-col gap-0 p-0 text-black font-medium">
         {menuItems.map((item, index) => (
-          <li key={index}>
+          <li key={index} className="m-0">
             <Link 
               to={item.to} 
-              className="hover:bg-indigo-100 rounded px-2 py-1 block" 
+              className={`${location.pathname === item.to ? 'bg-blue-600 text-white' : 'text-black'} block w-full px-4 py-3 transition-colors` } 
               onClick={onClose}
             >
               {item.label}

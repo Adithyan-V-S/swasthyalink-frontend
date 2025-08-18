@@ -24,7 +24,7 @@ const NotificationCenter = ({ notifications, onMarkAsRead, onClearAll }) => {
   return (
     <div className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       <button className="relative focus:outline-none" onClick={handleBellClick}>
-        <span className="material-icons text-white">notifications</span>
+        <span className="material-icons text-blue-600">notifications</span>
         {unreadNotifications.length > 0 && (
           <span className="absolute top-0 right-0 inline-block w-2 h-2 bg-red-500 rounded-full"></span>
         )}
