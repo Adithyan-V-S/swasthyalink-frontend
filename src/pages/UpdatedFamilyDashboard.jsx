@@ -211,13 +211,9 @@ const UpdatedFamilyDashboard = () => {
 
       case "chat":
         return (
-          <div className="w-full max-w-3xl mx-auto p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">Family Chat</h2>
-            </div>
-            
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-6">
+          <div className="w-full p-0">
+            <div className="bg-white rounded-none shadow-none border-0 overflow-hidden">
+              <div className="p-0">
                 {familyMembers.length > 0 ? (
                   <FamilyChat members={familyMembers} />
                 ) : (
@@ -325,7 +321,7 @@ const UpdatedFamilyDashboard = () => {
         </aside>
         
         {/* Main content */}
-        <div className="flex-1 md:mr-64 mr-0">
+        <div className="flex-1 mr-0 md:pr-64">
           {renderMainContent()}
         </div>
       </div>

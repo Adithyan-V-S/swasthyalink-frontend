@@ -163,7 +163,7 @@ const FamilyDashboard = () => {
   const handleAddFamilyMember = (newMember) => {
     setFamilyMembers(prev => [...prev, newMember]);
     // In a real app, this would also create a chat conversation
-    console.log('New family member added:', newMember);
+    console.log('New family member added:', newMember);   
   };
 
   const getStatusColor = (status) => {

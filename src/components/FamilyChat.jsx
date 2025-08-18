@@ -236,15 +236,12 @@ const FamilyChat = () => {
   };
 
   return (
-    <div className="w-full max-w-none bg-white rounded-xl shadow-lg overflow-hidden">
-      <div className="flex h-[80vh] min-h-[700px]">
+    <div className="w-full bg-white rounded-none shadow-none overflow-hidden">
+      <div className="flex h-[calc(100vh-8rem)] min-h-[600px]">
         {/* Conversations List */}
         <div className="w-1/3 border-r border-gray-200 flex flex-col">
           {/* Header */}
           <div className="p-4 border-b border-gray-200 bg-indigo-50">
-            <h3 className="text-lg font-semibold text-indigo-700 mb-3">Family Chat</h3>
-
-            {/* Search */}
             <div className="relative">
               <input
                 type="text"
@@ -359,6 +356,7 @@ const FamilyChat = () => {
                     disabled={!newMessage.trim()}
                     className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
+                    <span className="material-icons text-sm">send</span>
                     <span className="material-icons text-sm">send</span>
                   </button>
                 </div>
