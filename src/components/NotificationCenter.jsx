@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 
-const NotificationCenter = ({ notifications, onMarkAsRead, onClearAll }) => {
+const NotificationCenter = ({ notifications, onMarkAsRead, onClearAll, onItemClick }) => {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState("unread");
   const timerRef = useRef(null);
@@ -56,13 +56,19 @@ const NotificationCenter = ({ notifications, onMarkAsRead, onClearAll }) => {
               ) : (
                 unreadNotifications.map(n => (
                   <li key={n.id} className="px-4 py-2 border-b last:border-b-0 bg-yellow-50">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="text-sm font-medium">{n.message}</div>
-                        <div className="text-xs text-gray-400">{n.timestamp}</div>
+                    <button
+                      type="button"
+                      onClick={() => onItemClick && onItemClick(n)}
+                      className="w-full text-left"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-sm font-medium">{n.message}</div>
+                          <div className="text-xs text-gray-400">{n.timestamp}</div>
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); onMarkAsRead(n.id); }} className="ml-2 text-xs text-blue-500 hover:underline">Mark as read</button>
                       </div>
-                      <button onClick={() => onMarkAsRead(n.id)} className="ml-2 text-xs text-blue-500 hover:underline">Mark as read</button>
-                    </div>
+                    </button>
                   </li>
                 ))
               )
@@ -72,12 +78,18 @@ const NotificationCenter = ({ notifications, onMarkAsRead, onClearAll }) => {
               ) : (
                 readNotifications.map(n => (
                   <li key={n.id} className="px-4 py-2 border-b last:border-b-0 bg-gray-100">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="text-sm font-medium">{n.message}</div>
-                        <div className="text-xs text-gray-400">{n.timestamp}</div>
+                    <button
+                      type="button"
+                      onClick={() => onItemClick && onItemClick(n)}
+                      className="w-full text-left"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-sm font-medium">{n.message}</div>
+                          <div className="text-xs text-gray-400">{n.timestamp}</div>
+                        </div>
                       </div>
-                    </div>
+                    </button>
                   </li>
                 ))
               )

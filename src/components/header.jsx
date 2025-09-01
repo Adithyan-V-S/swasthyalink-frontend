@@ -60,6 +60,19 @@ const Header = () => {
     ));
   };
 
+  const handleNotificationClick = (n) => {
+    // Example: navigate to family chat based on conversationId
+    if (n.type === 'chat' && n.conversationId) {
+      navigate('/familydashboard');
+      // Hint to FamilyChat to auto-open this conversation
+      try {
+        localStorage.setItem('openConversationId', n.conversationId);
+      } catch {}
+    }
+    // Mark clicked notification as read
+    if (!n.read) handleMarkAsRead(n.id);
+  };
+
   const handleClearAll = () => {
     setNotifications(notifications.map(n => ({ ...n, read: true })));
   };
@@ -118,6 +131,7 @@ const Header = () => {
                   notifications={notifications}
                   onMarkAsRead={handleMarkAsRead}
                   onClearAll={handleClearAll}
+                  onItemClick={handleNotificationClick}
                 />
                 {/* Profile menu */}
                 <div className="relative" ref={profileMenuRef}>

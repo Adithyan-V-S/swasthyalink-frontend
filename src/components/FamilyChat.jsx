@@ -8,6 +8,9 @@ import {
   sendMessage as sendChatMessage,
   markAsRead,
   getOtherParticipant,
+  markMessagesAsRead,
+  deleteMessageForMe,
+  deleteMessageForEveryone,
 } from '../services/chatService';
 import { getFamilyNetwork as getFamilyNetworkLegacy } from '../services/familyService';
 
@@ -31,6 +34,7 @@ const FamilyChat = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [openMenuId, setOpenMenuId] = useState(null); // message options menu (mobile-friendly)
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const conversationUnsubRef = useRef(null);
@@ -79,7 +83,29 @@ const FamilyChat = () => {
   // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Mark visible messages as read
+    if (selectedConversation && currentUser && messages?.length) {
+      markMessagesAsRead({
+        conversationId: selectedConversation.id,
+        readerUid: currentUser.uid,
+        messages,
+      }).catch(() => {});
+    }
   }, [messages, selectedConversation]);
+
+  // Support deep link from notification to open a specific conversation
+  useEffect(() => {
+    try {
+      const targetId = localStorage.getItem('openConversationId');
+      if (targetId && conversations?.length) {
+        const target = conversations.find(c => c.id === targetId);
+        if (target) {
+          openConversation(target);
+          localStorage.removeItem('openConversationId');
+        }
+      }
+    } catch {}
+  }, [conversations]);
 
   // Filter conversations by search
   const filteredConversations = useMemo(() => {
@@ -235,9 +261,16 @@ const FamilyChat = () => {
     );
   };
 
+  // Close any open menu when clicking outside the chat area
+  useEffect(() => {
+    const handler = () => setOpenMenuId(null);
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
+  }, []);
+
   return (
     <div className="w-full bg-white rounded-none shadow-none overflow-hidden">
-      <div className="flex h-[calc(100vh-8rem)] min-h-[600px]">
+      <div className="flex h-[calc(100vh-8rem)] min-h-[600px]" onClick={() => setOpenMenuId(null)}>
         {/* Conversations List */}
         <div className="w-1/3 border-r border-gray-200 flex flex-col">
           {/* Header */}
@@ -321,17 +354,78 @@ const FamilyChat = () => {
                 {(messages || []).map((message) => {
                   const isMe = message.senderId === currentUser?.uid;
                   const when = toDate(message.timestamp);
+                  const deletedForMe = message.deletedFor?.[currentUser?.uid];
+                  const isDeleted = message.isDeleted;
+                  const isReadByOther = isMe && !!message.readBy?.[getOtherParticipant(selectedConversation, currentUser?.uid)?.uid];
+
+                  // Hide content if deleted for me
+                  const content = isDeleted
+                    ? <span className={`text-xs italic ${isMe ? 'text-indigo-200' : 'text-gray-500'}`}>This message was deleted</span>
+                    : deletedForMe
+                      ? <span className={`text-xs italic ${isMe ? 'text-indigo-200' : 'text-gray-500'}`}>You deleted this message</span>
+                      : <p className="text-sm">{message.text}</p>;
+
                   return (
-                    <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                    <div key={message.id} className={`group flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                       <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                        className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                           isMe ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-900'
                         }`}
                       >
-                        <p className="text-sm">{message.text}</p>
-                        <p className={`text-xs mt-1 ${isMe ? 'text-indigo-200' : 'text-gray-500'}`}>
-                          {when ? formatDate(when, 'TIME_ONLY') : ''}
-                        </p>
+                        {content}
+                        <div className={`flex items-center justify-end gap-2 mt-1 ${isMe ? 'text-indigo-200' : 'text-gray-500'}`}>
+                          <span className="text-xs">{when ? formatDate(when, 'TIME_ONLY') : ''}</span>
+                          {isMe && !isDeleted && !deletedForMe && (
+                            <span title={isReadByOther ? 'Read' : 'Sent'} className="text-xs">
+                              {isReadByOther ? '✔✔' : '✔'}
+                            </span>
+                          )}
+                          {/* Options button (mobile-friendly) */}
+                          {!isDeleted && (
+                            <button
+                              aria-label="Message options"
+                              className={`text-xs ${isMe ? 'text-indigo-200' : 'text-gray-600'} px-1 rounded hover:bg-white/10`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuId((prev) => (prev === message.id ? null : message.id));
+                              }}
+                            >
+                              ⋮
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Message actions popover */}
+                        {!isDeleted && openMenuId === message.id && (
+                          <div className={`absolute ${isMe ? 'right-0' : 'left-0'} -top-2 mt-1 z-10`}
+                               onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="bg-white border border-gray-200 shadow-lg rounded-md overflow-hidden min-w-[160px]">
+                              <button
+                                className="block px-3 py-2 text-sm hover:bg-gray-50 w-full text-left"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  deleteMessageForMe({ conversationId: selectedConversation.id, messageId: message.id, userUid: currentUser.uid }).catch(() => {});
+                                }}
+                              >
+                                Delete for me
+                              </button>
+                              {isMe && (
+                                <button
+                                  className="block px-3 py-2 text-sm hover:bg-gray-50 w-full text-left text-red-600"
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    if (confirm('Delete this message for everyone?')) {
+                                      deleteMessageForEveryone({ conversationId: selectedConversation.id, messageId: message.id, requesterUid: currentUser.uid }).catch(() => {});
+                                    }
+                                  }}
+                                >
+                                  Delete for everyone
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

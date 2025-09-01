@@ -143,6 +143,44 @@ export const getOtherParticipant = (conversation, currentUid) => {
   return { uid: otherUid, ...info };
 };
 
+// Mark all messages from the other participant as read (adds readBy[readerUid])
+export const markMessagesAsRead = async ({ conversationId, readerUid, messages }) => {
+  try {
+    if (!conversationId || !readerUid || !Array.isArray(messages)) return;
+    const updates = messages
+      .filter((m) => m && m.senderId !== readerUid && !(m.readBy && m.readBy[readerUid]))
+      .map(async (m) => {
+        const msgRef = doc(db, CHATS_COLLECTION, conversationId, 'messages', m.id);
+        await updateDoc(msgRef, { [`readBy.${readerUid}`]: serverTimestamp() });
+      });
+    await Promise.allSettled(updates);
+  } catch (e) {
+    console.error('markMessagesAsRead error:', e);
+  }
+};
+
+// Soft-delete a message for the current user only
+export const deleteMessageForMe = async ({ conversationId, messageId, userUid }) => {
+  if (!conversationId || !messageId || !userUid) return;
+  const msgRef = doc(db, CHATS_COLLECTION, conversationId, 'messages', messageId);
+  await updateDoc(msgRef, { [`deletedFor.${userUid}`]: true });
+};
+
+// Delete a message for everyone (only sender can do this)
+export const deleteMessageForEveryone = async ({ conversationId, messageId, requesterUid }) => {
+  if (!conversationId || !messageId || !requesterUid) return;
+  const msgRef = doc(db, CHATS_COLLECTION, conversationId, 'messages', messageId);
+  const snap = await getDoc(msgRef);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  if (data.senderId !== requesterUid) throw new Error('Only the sender can delete this message for everyone.');
+  await updateDoc(msgRef, {
+    isDeleted: true,
+    text: '', // keep text empty; UI will show a placeholder
+    deletedAt: serverTimestamp(),
+  });
+};
+
 export default {
   conversationIdFor,
   getOrCreateConversation,
@@ -151,4 +189,7 @@ export default {
   sendMessage,
   markAsRead,
   getOtherParticipant,
+  markMessagesAsRead,
+  deleteMessageForMe,
+  deleteMessageForEveryone,
 };
