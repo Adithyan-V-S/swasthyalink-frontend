@@ -144,19 +144,42 @@ export const getOtherParticipant = (conversation, currentUid) => {
 };
 
 // Mark all messages from the other participant as read (adds readBy[readerUid])
-export const markMessagesAsRead = async ({ conversationId, readerUid, messages }) => {
-  try {
-    if (!conversationId || !readerUid || !Array.isArray(messages)) return;
-    const updates = messages
-      .filter((m) => m && m.senderId !== readerUid && !(m.readBy && m.readBy[readerUid]))
-      .map(async (m) => {
-        const msgRef = doc(db, CHATS_COLLECTION, conversationId, 'messages', m.id);
-        await updateDoc(msgRef, { [`readBy.${readerUid}`]: serverTimestamp() });
+// Throttled version to reduce Firestore writes
+let markReadTimeout = null;
+let pendingMarkReadCalls = [];
+
+export const markMessagesAsRead = ({ conversationId, readerUid, messages }) => {
+  if (!conversationId || !readerUid || !Array.isArray(messages)) return;
+
+  // Add to pending calls
+  pendingMarkReadCalls.push({ conversationId, readerUid, messages });
+
+  if (markReadTimeout) return;
+
+  markReadTimeout = setTimeout(async () => {
+    const callsToProcess = [...pendingMarkReadCalls];
+    pendingMarkReadCalls = [];
+    markReadTimeout = null;
+
+    try {
+      const updates = [];
+      callsToProcess.forEach(({ conversationId, readerUid, messages }) => {
+        messages
+          .filter((m) => m && m.senderId !== readerUid && !(m.readBy && m.readBy[readerUid]))
+          .forEach((m) => {
+            const msgRef = doc(db, CHATS_COLLECTION, conversationId, 'messages', m.id);
+            updates.push(updateDoc(msgRef, { [`readBy.${readerUid}`]: serverTimestamp() }));
+          });
       });
-    await Promise.allSettled(updates);
-  } catch (e) {
-    console.error('markMessagesAsRead error:', e);
-  }
+      await Promise.allSettled(updates);
+    } catch (e) {
+      if (e.code === 'resource-exhausted' || e.message.includes('quota')) {
+        console.warn('Firestore quota exceeded in markMessagesAsRead, throttling updates');
+      } else {
+        console.error('markMessagesAsRead error:', e);
+      }
+    }
+  }, 2000); // Throttle updates every 2 seconds
 };
 
 // Soft-delete a message for the current user only

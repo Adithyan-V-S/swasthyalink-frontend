@@ -80,16 +80,32 @@ const FamilyChat = () => {
     };
   }, [currentUser]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages, but only if user is near bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesEndRef.current?.parentElement;
+    if (!container) return;
+
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+
+    if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+
     // Mark visible messages as read
     if (selectedConversation && currentUser && messages?.length) {
-      markMessagesAsRead({
-        conversationId: selectedConversation.id,
-        readerUid: currentUser.uid,
-        messages,
-      }).catch(() => {});
+      try {
+        markMessagesAsRead({
+          conversationId: selectedConversation.id,
+          readerUid: currentUser.uid,
+          messages,
+        });
+      } catch (e) {
+        if (e.code === 'resource-exhausted' || e.message.includes('quota')) {
+          console.warn('Firestore quota exceeded in markMessagesAsRead call');
+        } else {
+          console.error('markMessagesAsRead call failed:', e);
+        }
+      }
     }
   }, [messages, selectedConversation]);
 
@@ -126,11 +142,27 @@ const FamilyChat = () => {
     if (currentUser) {
       markAsRead({ conversationId: conversation.id, userUid: currentUser.uid }).catch(() => {});
     }
-    // Subscribe to messages in this conversation
-    if (conversationUnsubRef.current) conversationUnsubRef.current();
-    conversationUnsubRef.current = subscribeToMessages(conversation.id, (items) => {
-      setMessages(items || []);
+  // Subscribe to messages in this conversation
+  if (conversationUnsubRef.current) {
+    conversationUnsubRef.current();
+    conversationUnsubRef.current = null;
+  }
+
+  // Limit messages loaded to last 50 for performance
+  let unsub = null;
+  try {
+    unsub = subscribeToMessages(conversation.id, (items) => {
+      if (items && items.length > 50) {
+        setMessages(items.slice(items.length - 50));
+      } else {
+        setMessages(items || []);
+      }
     });
+  } catch (e) {
+    console.error('Failed to subscribe to messages:', e);
+    setMessages([]);
+  }
+  conversationUnsubRef.current = unsub;
   };
 
   const startChatWithMember = async (member) => {
@@ -451,7 +483,7 @@ const FamilyChat = () => {
                     className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <span className="material-icons text-sm">send</span>
-                    <span className="material-icons text-sm">send</span>
+                    {/* <span className="material-icons text-sm">send</span> */}
                   </button>
                 </div>
               </div>
