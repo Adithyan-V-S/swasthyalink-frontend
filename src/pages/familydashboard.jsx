@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import FamilyChat from "../components/FamilyChat";
+import GeminiChatbot from "../components/GeminiChatbot";
 import AddFamilyMember from "../components/AddFamilyMember";
 import FamilyRequestManager from "../components/FamilyRequestManager";
 import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";
@@ -491,7 +492,12 @@ const FamilyDashboard = () => {
       case 2: // Family Members
         return renderFamilyMembers();
       case 3: // Chat
-        return <FamilyChat />;
+        return (
+          <>
+            <FamilyChat />
+            <GeminiChatbot />
+          </>
+        );
       case 4: // Emergency
         return (
           <div className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">

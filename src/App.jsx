@@ -6,7 +6,8 @@ import Header from './components/header';
 import Footer from './components/footer';
 import CursorTrail from './components/CursorTrail';
 import Loader from './components/Loader';
-import Chatbot from './components/Chatbot';
+// import Chatbot from './components/Chatbot';
+import GeminiChatbot from './components/GeminiChatbot';
 import PrivateRoute from './components/PrivateRoute';
 import PublicRoute from './components/PublicRoute';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -49,7 +50,8 @@ function AppContent() {
         <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
       </Routes>
       {!hideHeaderFooterOn.includes(location.pathname) && <Footer />}
-      <Chatbot />
+      {/* <Chatbot /> */}
+      <GeminiChatbot />
     </ErrorBoundary>
   );
 }

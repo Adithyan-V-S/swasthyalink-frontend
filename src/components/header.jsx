@@ -4,6 +4,7 @@ import { auth } from "../firebaseConfig";
 import NotificationCenter from "./NotificationCenter";
 import Sidebar from "./Sidebar";
 import { useAuth } from "../contexts/AuthContext";
+import QRCode from "react-qr-code";
 
 const Header = () => {
   const [notifications, setNotifications] = useState([]);
@@ -143,10 +144,18 @@ const Header = () => {
                     <span className="material-icons text-blue-600 text-2xl">account_circle</span>
                   </button>
                   {profileMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg z-50 py-2">
-                      <button onClick={handleProfile} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-50">Profile</button>
-                      <button onClick={handleSettings} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-50">Settings</button>
-                      <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50">Logout</button>
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50 py-2 px-4">
+                      {currentUser?.uid && (
+                        <div className="flex flex-col items-center mb-3">
+                          <h4 className="text-sm font-semibold mb-1">My Patient QR</h4>
+                          <QRCode value={`https://yourapp.com/patient/${currentUser.uid}`} size={100} />
+                          <div className="text-xs text-gray-500 break-all mt-1">UID: {currentUser.uid}</div>
+                          <div className="text-[10px] text-gray-400 break-all">https://yourapp.com/patient/{currentUser.uid}</div>
+                        </div>
+                      )}
+                      <button onClick={handleProfile} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-50 rounded">Profile</button>
+                      <button onClick={handleSettings} className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-indigo-50 rounded">Settings</button>
+                      <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 rounded">Logout</button>
                     </div>
                   )}
                 </div>

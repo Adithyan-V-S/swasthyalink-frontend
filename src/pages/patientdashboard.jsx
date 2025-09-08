@@ -431,8 +431,31 @@ const PatientDashboard = () => {
                 </div>
               </div>
 
+              {/* Integrated QR card */}
+              <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center">
+                <h3 className="font-semibold text-gray-800 mb-3">My Patient QR</h3>
+                {uid ? (
+                  <>
+                    <QRCode value={qrValue} size={140} className="mb-2" />
+                    <div className="text-xs text-gray-500 break-all mt-1">UID: {uid}</div>
+                    <div className="text-[10px] text-gray-400 break-all">{qrValue}</div>
+                  </>
+                ) : (
+                  <div className="text-gray-400">Loading QR...</div>
+                )}
+              </div>
+
+              {/* Blood Pressure card */}
+              <div className="lg:col-span-5 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-2xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Blood Pressure</h3>
+                  <span className="text-sm opacity-80">130/82 mmHg</span>
+                </div>
+                <div className="mt-4 h-24 w-full bg-white/10 rounded-lg" />
+              </div>
+
               {/* Profile card */}
-              <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6">
+              <div className="lg:col-span-4 bg-white rounded-2xl shadow-lg p-6">
                 <div className="flex items-center gap-3">
                   <img src={currentUserInfo.avatar} alt="profile" className="w-12 h-12 rounded-full" />
                   <div>
@@ -450,29 +473,6 @@ const PatientDashboard = () => {
                     <span className="text-sm font-semibold text-gray-900">9.0 mmol/L ↗</span>
                   </button>
                 </div>
-              </div>
-
-              {/* Blood Pressure card */}
-              <div className="lg:col-span-5 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-2xl shadow-lg p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">Blood Pressure</h3>
-                  <span className="text-sm opacity-80">130/82 mmHg</span>
-                </div>
-                <div className="mt-4 h-24 w-full bg-white/10 rounded-lg" />
-              </div>
-
-              {/* Integrated QR card */}
-              <div className="lg:col-span-4 bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center">
-                <h3 className="font-semibold text-gray-800 mb-3">My Patient QR</h3>
-                {uid ? (
-                  <>
-                    <QRCode value={qrValue} size={140} className="mb-2" />
-                    <div className="text-xs text-gray-500 break-all mt-1">UID: {uid}</div>
-                    <div className="text-[10px] text-gray-400 break-all">{qrValue}</div>
-                  </>
-                ) : (
-                  <div className="text-gray-400">Loading QR...</div>
-                )}
               </div>
 
               {/* Medication reminder */}
