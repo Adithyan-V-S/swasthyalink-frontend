@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { auth } from "../firebaseConfig";
+import { auth, db } from "../firebaseConfig";
+import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import NotificationCenter from "./NotificationCenter";
 import Sidebar from "./Sidebar";
 import { useAuth } from "../contexts/AuthContext";
@@ -15,29 +16,38 @@ const Header = () => {
   const { currentUser, userRole, isAuthenticated, logout } = useAuth();
   let sidebarTimer = null;
 
-  // Mock notifications - in a real app, these would come from Firebase
   useEffect(() => {
-    if (isAuthenticated) {
-      // Simulate notifications for demonstration
-      const mockNotifications = [
-        {
-          id: 1,
-          type: "access_granted",
-          message: "Sarah Doe was granted full access to your health records",
-          timestamp: "2024-01-15 14:30",
-          read: false
-        },
-        {
-          id: 2,
-          type: "record_updated",
-          message: "New medical record added - Dr. Sharma consultation",
-          timestamp: "2024-01-14 10:15",
-          read: true
-        }
-      ];
-      setNotifications(mockNotifications);
+    if (!isAuthenticated || !currentUser) {
+      setNotifications([]);
+      return;
     }
-  }, [isAuthenticated]);
+
+    // Reference to notifications collection filtered by current user
+    const notificationsRef = collection(db, "notifications");
+    const q = query(
+      notificationsRef,
+      where("recipientId", "==", currentUser.uid),
+      orderBy("timestamp", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const notifs = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        notifs.push({
+          id: doc.id,
+          type: data.type,
+          message: data.message,
+          timestamp: data.timestamp?.toDate ? data.timestamp.toDate().toLocaleString() : data.timestamp,
+          read: data.read || false,
+          conversationId: data.conversationId || null,
+        });
+      });
+      setNotifications(notifs);
+    });
+
+    return () => unsubscribe();
+  }, [isAuthenticated, currentUser]);
 
   useEffect(() => {
     function handleClickOutside(event) {

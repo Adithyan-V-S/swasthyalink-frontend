@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { auth, googleProvider, db } from "../firebaseConfig";
-import { signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import authService from "../services/authService";
+import { ERROR_MESSAGES } from "../constants";
 import { useAuth } from "../contexts/AuthContext";
 
 const Login = () => {
@@ -107,25 +109,29 @@ const Login = () => {
     console.log("Not preset admin, proceeding with Firebase Auth");
     
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      if (!user.emailVerified) {
-        setError("Please verify your email before logging in. Check your inbox for a verification link.");
-        setShowResend(true);
-        setLoading(false);
-        return;
-      }
-      // Fetch user data from Firestore
-      const userDocRef = doc(db, "users", user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        // Always navigate to patient dashboard since we're focusing only on patient role
-        navigate("/patientdashboard");
+      const response = await authService.login(email, password);
+      if (response.success) {
+        const user = response.user;
+        if (!user.emailVerified) {
+          setError(ERROR_MESSAGES.INVALID_EMAIL);
+          setShowResend(true);
+          setLoading(false);
+          return;
+        }
+        // Fetch user data from Firestore
+        const userDocRef = doc(db, "users", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          // Always navigate to patient dashboard since we're focusing only on patient role
+          navigate("/patientdashboard");
+        } else {
+          setError("User data not found. Please contact support.");
+        }
       } else {
-        setError("User data not found. Please contact support.");
+        setError(response.error || ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
     } catch (err) {
-      setError("Login failed. Please check your credentials and try again.");
+      setError(ERROR_MESSAGES.AUTHENTICATION_FAILED);
     } finally {
       setLoading(false);
     }

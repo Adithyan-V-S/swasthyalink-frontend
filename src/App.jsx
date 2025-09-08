@@ -24,6 +24,7 @@ import UpdatedFamilyDashboard from './pages/UpdatedFamilyDashboard';
 import Settings from './pages/settings';
 import Login from './pages/login';
 import Register from './pages/register';
+import Profile from './pages/profile';
 
 function AppContent() {
   const location = useLocation();
@@ -37,6 +38,7 @@ function AppContent() {
         {/* Public Routes - No authentication required */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         
         {/* Authentication Routes - Redirect if already logged in */}
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />

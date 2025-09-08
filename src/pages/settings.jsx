@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { auth } from "../firebaseConfig";
 import { updateProfile } from "firebase/auth";
+import { getUserProfile, updateUserProfile } from "../services/firebaseProfileService";
 
 const Settings = () => {
   const [user, setUser] = useState(null);
@@ -19,17 +20,31 @@ const Settings = () => {
   });
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         setUser(user);
-        setProfileData(prev => ({
-          ...prev,
-          displayName: user.displayName || '',
-          email: user.email || ''
-        }));
         setPhotoPreview(user.photoURL);
+
+        // Load profile data from Firestore
+        const response = await getUserProfile(user.uid);
+        if (response.success) {
+          setProfileData(prev => ({
+            ...prev,
+            ...response.data,
+            displayName: user.displayName || response.data.displayName || '',
+            email: user.email || response.data.email || ''
+          }));
+        } else {
+          // If no profile found, initialize with auth data
+          setProfileData(prev => ({
+            ...prev,
+            displayName: user.displayName || '',
+            email: user.email || ''
+          }));
+        }
       }
     });
 
@@ -50,19 +65,30 @@ const Settings = () => {
     if (!user) return;
     
     setLoading(true);
+    setError('');
     try {
-      // Update profile in Firebase
+      // Update profile in Firebase Auth
       await updateProfile(user, {
         displayName: profileData.displayName,
         photoURL: photoPreview
       });
+
+      // Update profile in Firestore
+      const profileToSave = {
+        ...profileData,
+        email: user.email // ensure email is consistent
+      };
+      const response = await updateUserProfile(user.uid, profileToSave);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to save profile data');
+      }
       
-      // Save to localStorage for persistence
-      localStorage.setItem('userProfile', JSON.stringify(profileData));
+      // Save theme locally
       localStorage.setItem('theme', theme);
       
       alert('Profile updated successfully!');
     } catch (error) {
+      setError(error.message);
       alert('Error updating profile: ' + error.message);
     } finally {
       setLoading(false);

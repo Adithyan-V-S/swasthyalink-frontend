@@ -25,6 +25,7 @@
     "analyze": "npm run build && npx vite-bundle-analyzer dist"
   },
   "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated",
     "axios": "^1.11.0",
     "firebase": "^11.10.0",
     "react": "^19.1.0",
