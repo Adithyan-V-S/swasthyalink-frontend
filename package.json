@@ -28,6 +28,7 @@
     "@dataconnect/generated": "file:src/dataconnect-generated",
     "axios": "^1.11.0",
     "firebase": "^11.10.0",
+    "framer-motion": "^12.23.12",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-qr-code": "^2.0.18",

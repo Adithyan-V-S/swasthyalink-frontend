@@ -96,7 +96,7 @@ const GeminiChatbot = () => {
                 </svg>
               </div>
               <div>
-                <h3 className="font-medium">GeminiBot</h3>
+                <h3 className="font-medium">Swasthya bot</h3>
                 <p className="text-xs text-indigo-100">AI Health Assistant</p>
               </div>
             </div>

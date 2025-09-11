@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getUserProfile } from "../services/firebaseProfileService";
 import { getFamilyNetwork } from "../services/firebaseFamilyService";
+import { motion } from "framer-motion";
 
 const Profile = () => {
   const { currentUser } = useAuth();
@@ -42,22 +43,53 @@ const Profile = () => {
   }, [currentUser]);
 
   if (loadingProfile || loadingFamily) {
-    return <div>Loading profile...</div>;
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex justify-center items-center min-h-[60vh] text-lg text-gray-600"
+      >
+        Loading profile...
+      </motion.div>
+    );
   }
 
   if (error) {
-    return <div className="text-red-600">{error}</div>;
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-red-600 text-center p-4 bg-red-100 rounded-md max-w-xl mx-auto"
+      >
+        {error}
+      </motion.div>
+    );
   }
 
   if (!profileData) {
-    return <div>No profile data found.</div>;
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-center text-gray-600 p-6"
+      >
+        No profile data found.
+      </motion.div>
+    );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
-      <h1 className="text-4xl font-bold mb-8 border-b pb-4">Profile</h1>
-      <div className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-10">
-        <div className="w-40 h-40 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden shadow-lg">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="max-w-4xl mx-auto p-8 bg-white rounded-xl shadow-xl border border-gray-200"
+    >
+      <h1 className="text-5xl font-extrabold mb-10 border-b-4 border-indigo-600 pb-5 text-indigo-700 drop-shadow-md">
+        Profile
+      </h1>
+      <div className="flex flex-col md:flex-row items-center md:items-start space-y-8 md:space-y-0 md:space-x-12">
+        <div className="w-44 h-44 rounded-full bg-gray-300 flex items-center justify-center overflow-hidden shadow-2xl ring-4 ring-indigo-300">
           {profileData.photoURL ? (
             <img
               src={profileData.photoURL}
@@ -65,45 +97,85 @@ const Profile = () => {
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-gray-500 text-lg">No Photo</span>
+            <span className="text-gray-500 text-xl">No Photo</span>
           )}
         </div>
-        <div className="flex-1 text-gray-800">
-          <h2 className="text-2xl font-semibold mb-4">{profileData.displayName}</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-lg">
+        <div className="flex-1 text-gray-900">
+          <h2 className="text-3xl font-semibold mb-6">{profileData.displayName}</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6 text-lg">
             <div>
-              <p><span className="font-semibold">Email:</span> {profileData.email}</p>
-              <p><span className="font-semibold">Phone:</span> {profileData.phone || "N/A"}</p>
-              <p><span className="font-semibold">Age:</span> {profileData.age || "N/A"}</p>
-              <p><span className="font-semibold">Gender:</span> {profileData.gender || "N/A"}</p>
+              <p>
+                <span className="font-semibold">Email:</span> {profileData.email}
+              </p>
+              <p>
+                <span className="font-semibold">Phone:</span> {profileData.phone || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Age:</span> {profileData.age || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Gender:</span> {profileData.gender || "N/A"}
+              </p>
             </div>
             <div>
-              <p><span className="font-semibold">Blood Group:</span> {profileData.bloodGroup || "N/A"}</p>
-              <p><span className="font-semibold">Emergency Contact:</span> {profileData.emergencyContact || "N/A"}</p>
-              <p><span className="font-semibold">Address:</span> {profileData.address || "N/A"}</p>
-              <p><span className="font-semibold">Medical History:</span> {profileData.medicalHistory || "N/A"}</p>
+              <p>
+                <span className="font-semibold">Blood Group:</span> {profileData.bloodGroup || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Emergency Contact:</span> {profileData.emergencyContact || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Address:</span> {profileData.address || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Medical History:</span> {profileData.medicalHistory || "N/A"}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      <h2 className="text-3xl font-semibold mt-12 mb-6 border-b pb-3">Family Members</h2>
+      <h2 className="text-4xl font-semibold mt-16 mb-8 border-b-4 border-indigo-600 pb-4 text-indigo-700 drop-shadow-md">
+        Family Members
+      </h2>
       {familyMembers.length === 0 ? (
-        <p className="text-gray-600">No family members found.</p>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-gray-600 text-center"
+        >
+          No family members found.
+        </motion.p>
       ) : (
-        <ul className="space-y-4">
+        <ul className="space-y-6">
           {familyMembers.map((member) => (
-            <li key={member.id} className="border p-4 rounded-lg shadow-sm bg-gray-50">
-              <p><span className="font-semibold">Name:</span> {member.name || member.displayName || "N/A"}</p>
-              <p><span className="font-semibold">Relationship:</span> {member.relationship || "N/A"}</p>
-              <p><span className="font-semibold">Email:</span> {member.email || "N/A"}</p>
-              <p><span className="font-semibold">Access Level:</span> {member.accessLevel || "N/A"}</p>
-              <p><span className="font-semibold">Emergency Contact:</span> {member.isEmergencyContact ? "Yes" : "No"}</p>
-            </li>
+            <motion.li
+              key={member.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="border p-6 rounded-xl shadow-md bg-gray-50 hover:bg-indigo-50 transition-colors duration-300"
+            >
+              <p>
+                <span className="font-semibold">Name:</span> {member.name || member.displayName || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Relationship:</span> {member.relationship || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Email:</span> {member.email || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Access Level:</span> {member.accessLevel || "N/A"}
+              </p>
+              <p>
+                <span className="font-semibold">Emergency Contact:</span> {member.isEmergencyContact ? "Yes" : "No"}
+              </p>
+            </motion.li>
           ))}
         </ul>
       )}
-    </div>
+    </motion.div>
   );
 };
 

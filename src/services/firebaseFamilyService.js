@@ -378,58 +378,72 @@ export const getFamilyNetwork = async (userUid) => {
  */
 export const removeFamilyMember = async (userUid, memberEmail) => {
   try {
+    // Get current user to access email
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('User not authenticated');
+    }
+
     // Get user's network document
     const networkQuery = query(
       familyNetworksCollection,
       where('userUid', '==', userUid)
     );
-    
+
     const networkSnapshot = await getDocs(networkQuery);
-    
+
     if (networkSnapshot.empty) {
       throw new Error('Family network not found');
     }
-    
+
     const networkDoc = networkSnapshot.docs[0];
     const networkData = networkDoc.data();
-    
+
     // Find the member to remove
     const memberToRemove = networkData.members.find(member => member.email === memberEmail);
-    
+
     if (!memberToRemove) {
       throw new Error('Member not found in family network');
     }
-    
+
     // Remove member from user's network
     await updateDoc(doc(familyNetworksCollection, networkDoc.id), {
       members: arrayRemove(memberToRemove),
       updatedAt: serverTimestamp()
     });
-    
-    // Find the other user's network and remove current user
-    const otherNetworkQuery = query(
-      familyNetworksCollection,
-      where('members', 'array-contains', { email: userUid })
+
+    // Find the other user's UID by email
+    const usersQuery = query(
+      usersCollection,
+      where('email', '==', memberEmail)
     );
-    
-    const otherNetworkSnapshot = await getDocs(otherNetworkQuery);
-    
-    if (!otherNetworkSnapshot.empty) {
-      const otherNetworkDoc = otherNetworkSnapshot.docs[0];
-      const otherNetworkData = otherNetworkDoc.data();
-      
-      const currentUserInOtherNetwork = otherNetworkData.members.find(
-        member => member.email === userUid
-      );
-      
-      if (currentUserInOtherNetwork) {
-        await updateDoc(doc(familyNetworksCollection, otherNetworkDoc.id), {
-          members: arrayRemove(currentUserInOtherNetwork),
-          updatedAt: serverTimestamp()
-        });
+
+    const usersSnapshot = await getDocs(usersQuery);
+
+    if (!usersSnapshot.empty) {
+      const memberUid = usersSnapshot.docs[0].id;
+
+      // Get the other user's network
+      const otherNetworkRef = doc(familyNetworksCollection, memberUid);
+      const otherNetworkDoc = await getDoc(otherNetworkRef);
+
+      if (otherNetworkDoc.exists()) {
+        const otherNetworkData = otherNetworkDoc.data();
+
+        // Find current user in the other network
+        const currentUserInOtherNetwork = otherNetworkData.members.find(
+          member => member.email === currentUser.email
+        );
+
+        if (currentUserInOtherNetwork) {
+          await updateDoc(otherNetworkRef, {
+            members: arrayRemove(currentUserInOtherNetwork),
+            updatedAt: serverTimestamp()
+          });
+        }
       }
     }
-    
+
     return true;
   } catch (error) {
     console.error('Error removing family member:', error);

@@ -539,6 +539,124 @@ export const getFamilyRequests = async (email) => {
   }
 };
 
+// Update family request relationship
+export const updateFamilyRequestRelationship = async (requestId, recipientRelationship) => {
+  try {
+    console.log("Updating family request relationship:", requestId, recipientRelationship);
+    
+    const requestRef = doc(db, 'familyRequests', requestId);
+    const requestSnap = await getDoc(requestRef);
+    
+    if (!requestSnap.exists()) {
+      throw new Error('Request not found');
+    }
+    
+    // Update the request with recipient's relationship
+    await updateDoc(requestRef, {
+      recipientRelationship: recipientRelationship,
+      updatedAt: serverTimestamp()
+    });
+    
+    return {
+      success: true,
+      message: 'Family request relationship updated successfully'
+    };
+  } catch (error) {
+    console.error('Error updating family request relationship:', error);
+    throw error;
+  }
+};
+
+// Update family member access
+export const updateFamilyMemberAccess = async (memberUid, accessData) => {
+  try {
+    console.log("Updating family member access:", memberUid, accessData);
+    
+    // Get current user
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('You must be logged in to update family member access');
+    }
+    
+    // Get family network
+    const networksRef = collection(db, 'familyNetworks');
+    const networkQuery = query(networksRef, where('userUid', '==', currentUser.uid));
+    const networkSnapshot = await getDocs(networkQuery);
+    
+    if (networkSnapshot.empty) {
+      throw new Error('Family network not found');
+    }
+    
+    const networkRef = networkSnapshot.docs[0].ref;
+    const networkData = networkSnapshot.docs[0].data();
+    
+    // Update the specific member
+    const updatedMembers = networkData.members.map(member => 
+      member.uid === memberUid 
+        ? { ...member, ...accessData, updatedAt: new Date().toISOString() }
+        : member
+    );
+    
+    // Update network
+    await updateDoc(networkRef, {
+      members: updatedMembers,
+      updatedAt: serverTimestamp()
+    });
+    
+    return {
+      success: true,
+      message: 'Family member access updated successfully'
+    };
+  } catch (error) {
+    console.error('Error updating family member access:', error);
+    throw error;
+  }
+};
+
+// Remove family member
+export const removeFamilyMember = async (memberEmail) => {
+  try {
+    console.log("Removing family member:", memberEmail);
+    
+    // Get current user
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('You must be logged in to remove family member');
+    }
+    
+    // Get family network
+    const networksRef = collection(db, 'familyNetworks');
+    const networkQuery = query(networksRef, where('userUid', '==', currentUser.uid));
+    const networkSnapshot = await getDocs(networkQuery);
+    
+    if (networkSnapshot.empty) {
+      throw new Error('Family network not found');
+    }
+    
+    const networkRef = networkSnapshot.docs[0].ref;
+    const networkData = networkSnapshot.docs[0].data();
+    
+    // Remove the member
+    const updatedMembers = networkData.members.filter(member => 
+      member.email !== memberEmail
+    );
+    
+    // Update network
+    await updateDoc(networkRef, {
+      members: updatedMembers,
+      updatedAt: serverTimestamp()
+    });
+    
+    return {
+      success: true,
+      message: 'Family member removed successfully'
+    };
+  } catch (error) {
+    console.error('Error removing family member:', error);
+    throw error;
+  }
+};
+
 // Get mutual family network
 export const getMutualFamilyNetwork = async (email1, email2) => {
   try {
