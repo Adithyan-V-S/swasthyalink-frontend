@@ -21,6 +21,7 @@ const Settings = () => {
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [error, setError] = useState('');
+  const [debounceTimer, setDebounceTimer] = useState(null);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -63,7 +64,7 @@ const Settings = () => {
 
   const handleSave = async () => {
     if (!user) return;
-    
+
     setLoading(true);
     setError('');
     try {
@@ -82,10 +83,10 @@ const Settings = () => {
       if (!response.success) {
         throw new Error(response.error || 'Failed to save profile data');
       }
-      
+
       // Save theme locally
       localStorage.setItem('theme', theme);
-      
+
       alert('Profile updated successfully!');
     } catch (error) {
       setError(error.message);
@@ -93,6 +94,17 @@ const Settings = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Debounced save function to reduce Firestore writes
+  const debouncedSave = () => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    const timer = setTimeout(() => {
+      handleSave();
+    }, 2000); // 2 second debounce
+    setDebounceTimer(timer);
   };
 
   const toggleTheme = () => {
@@ -370,11 +382,11 @@ const Settings = () => {
                   {/* Save Button */}
                   <div className="mt-8 flex justify-end">
                     <button
-                      onClick={handleSave}
+                      onClick={debouncedSave}
                       disabled={loading}
                       className={`px-8 py-3 rounded-lg font-semibold text-white transition-all duration-200 ${
-                        loading 
-                          ? 'bg-gray-400 cursor-not-allowed' 
+                        loading
+                          ? 'bg-gray-400 cursor-not-allowed'
                           : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg transform hover:scale-105'
                       }`}
                     >

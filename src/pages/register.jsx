@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, googleProvider, db } from "../firebaseConfig";
-import { signInWithPopup, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
 function EmailVerificationModal({ open, onResend, onCheck, onClose, email, verificationMessage }) {
@@ -34,6 +34,46 @@ const Register = () => {
   const navigate = useNavigate();
   const [validation, setValidation] = useState({ email: '', password: '', confirm: '' });
 
+  // Handle redirect result from Google sign-up
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          const user = result.user;
+          console.log("Google redirect sign up successful, user:", user.uid, "email:", user.email);
+          
+          // Always set role as "patient" without asking
+          const userData = {
+            uid: user.uid,
+            name: user.displayName,
+            email: user.email,
+            role: "patient",
+            createdAt: new Date().toISOString()
+          };
+          
+          console.log("Attempting to save user data to Firestore:", userData);
+          
+          try {
+            await setDoc(doc(db, "users", user.uid), userData);
+            console.log("User data successfully saved to Firestore");
+            // Always navigate to patient dashboard
+            console.log("Navigating to patient dashboard");
+            navigate("/patientdashboard");
+          } catch (firestoreError) {
+            console.error("Error saving to Firestore:", firestoreError);
+            setError("Failed to save user data: " + firestoreError.message);
+          }
+        }
+      } catch (error) {
+        console.error("Error handling redirect result:", error);
+        setError("Google sign-up failed. Please try again.");
+      }
+    };
+
+    handleRedirectResult();
+  }, [navigate]);
+
   const validateEmail = (email) => {
     // Simple email regex
     return /^\S+@\S+\.\S+$/.test(email);
@@ -52,35 +92,13 @@ const Register = () => {
   const handleGoogleSignUp = async () => {
     setError("");
     try {
-      console.log("Starting Google sign up process");
-      const result = await signInWithPopup(auth, googleProvider);
-      console.log("Google sign in successful, user:", result.user.uid);
+      console.log("Starting Google sign up with redirect method");
       
-      // Always set role as "patient" without asking
-      const userData = {
-        uid: result.user.uid,
-        name: result.user.displayName,
-        email: result.user.email,
-        role: "patient",
-        createdAt: new Date().toISOString()
-      };
-      
-      console.log("Attempting to save user data to Firestore:", userData);
-      
-      try {
-        await setDoc(doc(db, "users", result.user.uid), userData);
-        console.log("User data successfully saved to Firestore");
-      } catch (firestoreError) {
-        console.error("Error saving to Firestore:", firestoreError);
-        setError("Failed to save user data: " + firestoreError.message);
-        return;
-      }
-      
-      // Always navigate to patient dashboard
-      console.log("Navigating to patient dashboard");
-      navigate("/patientdashboard");
+      // Use redirect method directly to avoid COOP issues
+      await signInWithRedirect(auth, googleProvider);
+      // The redirect will handle the rest, and the useEffect will process the result
     } catch (error) {
-      console.error("Google sign up failed:", error);
+      console.error("Google sign up redirect failed:", error);
       setError("Google sign up failed: " + error.message);
     }
   };
@@ -216,18 +234,8 @@ const Register = () => {
   }
 
   return (
-    <main className="relative min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-100 to-pink-100 px-4 py-10 overflow-hidden">
-      {/* Back to Home Button - Same as login page */}
-      <Link 
-        to="/" 
-        className="absolute top-6 left-6 flex items-center gap-2 text-indigo-600 hover:text-indigo-800 transition-colors duration-200"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-        </svg>
-        <span className="font-medium">Back to Home</span>
-      </Link>
-      
+    <main className="min-h-screen bg-[#F7F8FD] flex items-center justify-center px-4 py-8">
+      {/* Email verification modal (unchanged logic) */}
       <EmailVerificationModal
         open={showVerification}
         onResend={handleResend}
@@ -236,91 +244,124 @@ const Register = () => {
         email={form.email}
         verificationMessage={verificationMessage}
       />
-      {/* Blurred floating shapes */}
-      <div className="absolute top-0 left-0 w-72 h-72 bg-indigo-300 opacity-30 rounded-full filter blur-3xl animate-float z-0" style={{animationDuration:'7s'}} />
-      <div className="absolute bottom-0 right-0 w-80 h-80 bg-pink-300 opacity-20 rounded-full filter blur-2xl animate-float z-0" style={{animationDuration:'9s'}} />
-      <div className="absolute top-1/2 left-1/3 w-60 h-60 bg-yellow-200 opacity-20 rounded-full filter blur-2xl animate-float z-0" style={{animationDuration:'11s'}} />
-      <div className="absolute bottom-10 left-10 w-40 h-40 bg-green-200 opacity-20 rounded-full filter blur-2xl animate-float z-0" style={{animationDuration:'13s'}} />
-      {/* Animated health icons */}
-      <div className="absolute top-16 left-24 z-0 animate-bounce-slow">
-        {/* Heart icon */}
-        <svg className="w-12 h-12 text-red-400 opacity-60" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-        </svg>
-      </div>
-      <div className="absolute bottom-24 right-32 z-0 animate-pulse-slow">
-        {/* Medical cross icon */}
-        <svg className="w-10 h-10 text-blue-400 opacity-50" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M10 2a1 1 0 011 1v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H3a1 1 0 110-2h6V3a1 1 0 011-1z" clipRule="evenodd" />
-        </svg>
-      </div>
-      <div className="absolute top-1/3 right-1/4 z-0 animate-float">
-        {/* Stethoscope icon */}
-        <svg className="w-12 h-12 text-green-400 opacity-50" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 3v6a6 6 0 006 6 6 6 0 006-6V3m-6 18v-2m0 0a4 4 0 004-4h-4a4 4 0 01-4 4z" />
-        </svg>
-      </div>
-      <div className="relative w-full max-w-3xl flex flex-col md:flex-row items-center justify-center z-10 gap-8">
-        {/* Form container */}
-        <div className="relative w-full max-w-md bg-white/90 backdrop-blur-lg rounded-3xl shadow-3xl p-10 flex flex-col items-center border border-indigo-100">
-          <div className="mb-6 flex flex-col items-center">
-            <img
-              src="https://e7.pngegg.com/pngimages/261/718/png-clipart-perth-health-fitness-and-wellness-logo-meetup-embracing-miscellaneous-leaf-thumbnail.png"
-              alt="Health Logo"
-              className="w-16 h-16 mb-2 animate-float"
-            />
-            <h2 className="text-2xl font-bold text-indigo-700">Create Account</h2>
-            <p className="text-gray-500 text-sm">Register for Swasthyakink</p>
+
+      {/* Main card with two columns to mirror the reference UI */}
+      <div className="w-full max-w-6xl bg-white rounded-[32px] shadow-xl overflow-hidden grid grid-cols-1 md:grid-cols-2">
+        {/* Left gradient info panel */}
+        <div className="relative p-10 md:p-12 text-white bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600">
+          <div className="absolute inset-0 opacity-20 pointer-events-none">
+            <div className="absolute -left-10 top-10 w-40 h-40 rounded-full bg-indigo-400 blur-3xl" />
+            <div className="absolute -right-10 bottom-10 w-56 h-56 rounded-full bg-purple-400 blur-3xl" />
           </div>
-          <button
-            type="button"
-            onClick={handleGoogleSignUp}
-            className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg font-semibold shadow hover:bg-yellow-50 hover:border-yellow-400 transition-colors duration-200 mb-4"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 48 48"><g><path fill="#4285F4" d="M24 9.5c3.54 0 6.7 1.22 9.19 3.61l6.85-6.85C36.68 2.69 30.82 0 24 0 14.82 0 6.71 5.48 2.69 13.44l7.98 6.2C12.13 13.09 17.62 9.5 24 9.5z"/><path fill="#34A853" d="M46.1 24.55c0-1.64-.15-3.22-.42-4.74H24v9.01h12.42c-.54 2.9-2.18 5.36-4.65 7.01l7.19 5.59C43.98 37.13 46.1 31.36 46.1 24.55z"/><path fill="#FBBC05" d="M10.67 28.65c-1.13-3.36-1.13-6.99 0-10.35l-7.98-6.2C.7 16.09 0 19.95 0 24c0 4.05.7 7.91 2.69 11.9l7.98-6.2z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.14 15.9-5.82l-7.19-5.59c-2.01 1.35-4.59 2.16-8.71 2.16-6.38 0-11.87-3.59-14.33-8.94l-7.98 6.2C6.71 42.52 14.82 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></g></svg>
-            Sign up with Google
-          </button>
-          {error && (
-            <div className="w-full mt-4 text-center p-2 bg-red-100 text-red-700 rounded-lg">
-              {error}
+          <div className="relative">
+            <div className="text-white/80 text-sm mb-6 font-semibold tracking-wide">swasthyalink</div>
+            <h2 className="text-2xl md:text-3xl font-semibold leading-snug mb-8">
+              Get started managing secure, high‑quality health records
+            </h2>
+
+            <ul className="space-y-6">
+              <li className="flex items-start gap-3">
+                <span className="shrink-0 mt-1 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white/10">
+                  {/* Chat bubble icon */}
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 5a3 3 0 013-3h10a3 3 0 013 3v6a3 3 0 01-3 3H8l-4 4v-4H5a3 3 0 01-3-3V5z"/></svg>
+                </span>
+                <div>
+                  <p className="font-medium">Trusted by patients and doctors</p>
+                  <p className="text-white/80 text-sm">Secure access and collaboration for better care.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="shrink-0 mt-1 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white/10">
+                  {/* Clock icon */}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div>
+                  <p className="font-medium">Save time</p>
+                  <p className="text-white/80 text-sm">Fast onboarding, simple sharing, instant updates.</p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="shrink-0 mt-1 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white/10">
+                  {/* Shield icon */}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </span>
+                <div>
+                  <p className="font-medium">Privacy first</p>
+                  <p className="text-white/80 text-sm">Your data is protected with robust security.</p>
+                </div>
+              </li>
+            </ul>
+
+            {/* Optional bottom illustration style */}
+            <div className="mt-12 hidden md:block">
+              <div className="w-40 h-2 rounded-full bg-white/20" />
             </div>
-          )}
-          {showVerification && !error && (
-            <div className="w-full mt-4 text-center p-2 bg-blue-100 text-blue-700 rounded-lg">
-              Account created! Please verify your email to complete registration and save your data.
-            </div>
-          )}
-          <form className="w-full flex flex-col gap-4" onSubmit={handleSubmit}>
-          <div>
-              <label htmlFor="name" className="block text-gray-700 mb-1 font-medium">Name</label>
+          </div>
+        </div>
+
+        {/* Right form panel */}
+        <div className="relative p-8 md:p-12">
+          <div className="absolute right-8 top-8 text-sm text-gray-500">
+            Already have an account?{' '}
+            <Link to="/login" className="inline-flex items-center px-3 py-1 rounded-full bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition">Sign in</Link>
+          </div>
+
+          <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-8">Create your free account</h1>
+
+          {/* Social buttons */}
+          <div className="space-y-3 mb-6">
+            <button
+              type="button"
+              onClick={handleGoogleSignUp}
+              className="w-full h-11 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center gap-2 text-gray-800 transition"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 48 48"><g><path fill="#4285F4" d="M24 9.5c3.54 0 6.7 1.22 9.19 3.61l6.85-6.85C36.68 2.69 30.82 0 24 0 14.82 0 6.71 5.48 2.69 13.44l7.98 6.2C12.13 13.09 17.62 9.5 24 9.5z"/><path fill="#34A853" d="M46.1 24.55c0-1.64-.15-3.22-.42-4.74H24v9.01h12.42c-.54 2.9-2.18 5.36-4.65 7.01l7.19 5.59C43.98 37.13 46.1 31.36 46.1 24.55z"/><path fill="#FBBC05" d="M10.67 28.65c-1.13-3.36-1.13-6.99 0-10.35l-7.98-6.2C.7 16.09 0 19.95 0 24c0 4.05.7 7.91 2.69 11.9l7.98-6.2z"/><path fill="#EA4335" d="M24 48c6.48 0 11.93-2.14 15.9-5.82l-7.19-5.59c-2.01 1.35-4.59 2.16-8.71 2.16-6.38 0-11.87-3.59-14.33-8.94l-7.98 6.2C6.71 42.52 14.82 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></g></svg>
+              Sign up with Google
+            </button>
+            {/* <button type="button" className="w-full h-11 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center gap-2 text-gray-400 cursor-not-allowed">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M22.676 0H1.324C.593 0 0 .593 0 1.324v21.352C0 23.407.593 24 1.324 24h11.495v-9.294H9.691v-3.622h3.128V8.413c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24l-1.918.001c-1.504 0-1.796.715-1.796 1.763v2.313h3.59l-.467 3.622h-3.123V24h6.127C23.407 24 24 23.407 24 22.676V1.324C24 .593 23.407 0 22.676 0"/></svg>
+              Sign up with Facebook
+            </button> */}
+          </div>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="border-t border-gray-200" />
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-3 text-xs text-gray-400">or</span>
+          </div>
+
+          {/* Form (logic unchanged) */}
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div>
+              {/* <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Name</label> */}
               <input
                 id="name"
                 type="text"
                 name="name"
                 value={form.name}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full h-12 px-4 rounded-xl bg-gray-50 border-0 ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-400"
                 placeholder="Enter your name"
                 required
               />
               {validation.name && <div className="text-red-500 text-xs mt-1">{validation.name}</div>}
             </div>
             <div>
-              <label htmlFor="email" className="block text-gray-700 mb-1 font-medium">Email</label>
+              {/* <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label> */}
               <input
                 id="email"
                 type="email"
                 name="email"
                 value={form.email}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full h-12 px-4 rounded-xl bg-gray-50 border-0 ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-400"
                 placeholder="Enter your email"
                 required
               />
               {validation.email && <div className="text-red-500 text-xs mt-1">{validation.email}</div>}
             </div>
             <div>
-              <label htmlFor="password" className="block text-gray-700 mb-1 font-medium">Password</label>
+              {/* <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label> */}
               <div className="relative">
                 <input
                   id="password"
@@ -328,13 +369,13 @@ const Register = () => {
                   name="password"
                   value={form.password}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10"
+                  className="w-full h-12 px-4 pr-10 rounded-xl bg-gray-50 border-0 ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-400"
                   placeholder="Enter your password"
                   required
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-2 text-gray-500 hover:text-indigo-600 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-600"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
                 >
@@ -352,7 +393,7 @@ const Register = () => {
               {validation.password && <div className="text-red-500 text-xs mt-1">{validation.password}</div>}
             </div>
             <div>
-              <label htmlFor="confirm" className="block text-gray-700 mb-1 font-medium">Confirm Password</label>
+              {/* <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label> */}
               <div className="relative">
                 <input
                   id="confirm"
@@ -360,13 +401,13 @@ const Register = () => {
                   name="confirm"
                   value={form.confirm}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 pr-10"
+                  className="w-full h-12 px-4 pr-10 rounded-xl bg-gray-50 border-0 ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-400"
                   placeholder="Confirm your password"
                   required
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-2 text-gray-500 hover:text-indigo-600 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-indigo-600"
                   onClick={() => setShowConfirm((v) => !v)}
                   tabIndex={-1}
                 >
@@ -383,16 +424,35 @@ const Register = () => {
               </div>
               {validation.confirm && <div className="text-red-500 text-xs mt-1">{validation.confirm}</div>}
             </div>
+
             <button
               type="submit"
-              className="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold text-lg shadow hover:bg-yellow-400 hover:text-indigo-800 transition-colors duration-200 mt-2"
+              className="w-full h-12 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold tracking-wide shadow hover:from-indigo-500 hover:to-violet-500 transition flex items-center justify-center gap-2"
             >
-              Register
+              <span>Sign up with Email</span>
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10.293 15.707a1 1 0 010-1.414L12.586 12H4a1 1 0 110-2h8.586l-2.293-2.293a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"/></svg>
             </button>
           </form>
-          <div className="mt-4 text-sm text-gray-600">
-            Already have an account?{' '}
-            <Link to="/login" className="text-indigo-600 hover:text-yellow-500 font-semibold">Login</Link>
+
+          {/* Feedback messages (logic unchanged) */}
+          {error && (
+            <div className="w-full mt-4 text-center p-2 bg-red-100 text-red-700 rounded-lg">{error}</div>
+          )}
+          {showVerification && !error && (
+            <div className="w-full mt-4 text-center p-2 bg-blue-100 text-blue-700 rounded-lg">
+              Account created! Please verify your email to complete registration and save your data.
+            </div>
+          )}
+
+          {/* Extra helper card */}
+          <div className="mt-8">
+            <div className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3 text-gray-700">
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700">✍️</span>
+                <p className="text-sm">Are you a doctor looking to join?</p>
+              </div>
+              <button type="button" className="text-indigo-700 hover:text-indigo-900 text-sm font-medium">Click here to apply</button>
+            </div>
           </div>
         </div>
       </div>

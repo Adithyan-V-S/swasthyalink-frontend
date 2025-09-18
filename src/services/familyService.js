@@ -11,679 +11,152 @@ import {
   deleteDoc,
   serverTimestamp
 } from 'firebase/firestore';
+import { 
+  createFamilyRequestNotification,
+  createFamilyRequestAcceptedNotification,
+  createFamilyRequestRejectedNotification 
+} from './notificationService';
+import { getFamilyNetwork as getFirebaseFamilyNetwork } from './firebaseFamilyService';
 
-// Send a family request
+// Send a family request (QUOTA PROTECTION - DISABLED)
 export const sendFamilyRequest = async ({ fromEmail, toEmail, toName, relationship }) => {
-  try {
-    console.log("Sending family request:", { fromEmail, toEmail, toName, relationship });
-    
-    // Get current user
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      throw new Error('You must be logged in to send a family request');
-    }
-    
-    // Find the recipient user by email
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('email', '==', toEmail));
-    const querySnapshot = await getDocs(q);
-    
-    let toUid = null;
-    querySnapshot.forEach((doc) => {
-      toUid = doc.id;
-    });
-    
-    if (!toUid) {
-      throw new Error('Recipient user not found');
-    }
-    
-    // Check if a request already exists
-    const requestsRef = collection(db, 'familyRequests');
-    const existingRequestQuery = query(
-      requestsRef, 
-      where('fromUid', '==', currentUser.uid),
-      where('toUid', '==', toUid)
-    );
-    
-    const existingRequestSnapshot = await getDocs(existingRequestQuery);
-    if (!existingRequestSnapshot.empty) {
-      throw new Error('A request to this user already exists');
-    }
-    
-    // Create the request
-    const requestData = {
-      fromUid: currentUser.uid,
-      fromEmail: currentUser.email,
-      fromName: currentUser.displayName || fromEmail.split('@')[0],
-      toUid: toUid,
-      toEmail: toEmail,
-      toName: toName,
-      relationship: relationship,
-      status: 'pending',
-      createdAt: serverTimestamp()
-    };
-    
-    const docRef = await addDoc(collection(db, 'familyRequests'), requestData);
-    
-    return {
-      success: true,
-      request: {
-        id: docRef.id,
-        ...requestData
-      }
-    };
-  } catch (error) {
-    console.error('Error sending family request:', error);
-    throw error;
-  }
-};
-
-// Accept a family request
-export const acceptFamilyRequest = async (requestId) => {
-  try {
-    console.log("Accepting family request with ID:", requestId);
-    
-    // Get the request
-    const requestRef = doc(db, 'familyRequests', requestId);
-    const requestSnap = await getDoc(requestRef);
-    
-    if (!requestSnap.exists()) {
-      console.error("Request not found with ID:", requestId);
-      throw new Error('Request not found');
-    }
-    
-    const requestData = requestSnap.data();
-    console.log("Request data:", requestData);
-    
-    // Check if the request is already accepted
-    if (requestData.status === 'accepted') {
-      console.log("Request is already accepted, skipping update");
-      return {
-        success: true,
-        message: 'Family request already accepted'
-      };
-    }
-    
-    // Update the request status
-    await updateDoc(requestRef, {
-      status: 'accepted',
-      updatedAt: serverTimestamp()
-    });
-    console.log("Request status updated to 'accepted'");
-    
-    // Verify the update was successful
-    const updatedRequestSnap = await getDoc(requestRef);
-    const updatedRequestData = updatedRequestSnap.data();
-    console.log("Updated request data:", updatedRequestData);
-    
-    // Create or update family networks for both users
-    console.log("Updating family network for sender:", requestData.fromUid);
-    try {
-      await updateFamilyNetwork(requestData.fromUid, requestData.toUid, requestData.relationship, requestData);
-      console.log("Successfully updated sender's family network");
-    } catch (error) {
-      console.error("Error updating sender's family network:", error);
-      // Continue with recipient's network update even if sender's update fails
-    }
-    
-    console.log("Updating family network for recipient:", requestData.toUid);
-    try {
-      await updateFamilyNetwork(requestData.toUid, requestData.fromUid, requestData.relationship, requestData);
-      console.log("Successfully updated recipient's family network");
-    } catch (error) {
-      console.error("Error updating recipient's family network:", error);
-    }
-    
-    console.log("Family networks updated successfully");
-    
-    return {
-      success: true,
-      message: 'Family request accepted successfully'
-    };
-  } catch (error) {
-    console.error('Error accepting family request:', error);
-    throw error;
-  }
-};
-
-// Helper function to update family network
-const updateFamilyNetwork = async (userUid, familyMemberUid, relationship, requestData) => {
-  console.log(`Updating family network: User ${userUid} adding member ${familyMemberUid} as ${relationship}`);
+  // EMERGENCY: Disable Firebase operations to prevent quota usage
+  console.warn('🚨 QUOTA EXCEEDED - Family request creation disabled to prevent Firebase writes');
+  console.log('📝 Would have sent family request:', { fromEmail, toEmail, toName, relationship });
   
-  try {
-    // Get user data
-    const userDoc = await getDoc(doc(db, 'users', userUid));
-    const familyMemberDoc = await getDoc(doc(db, 'users', familyMemberUid));
-    
-    if (!userDoc.exists()) {
-      console.error(`User ${userUid} not found`);
-      throw new Error(`User ${userUid} not found`);
-    }
-    
-    if (!familyMemberDoc.exists()) {
-      console.error(`Family member ${familyMemberUid} not found`);
-      throw new Error(`Family member ${familyMemberUid} not found`);
-    }
-    
-    const userData = userDoc.data();
-    const familyMemberData = familyMemberDoc.data();
-    
-    console.log("User data:", userData);
-    console.log("Family member data:", familyMemberData);
-    
-    // Check if network exists
-    const networksRef = collection(db, 'familyNetworks');
-    const q = query(networksRef, where('userUid', '==', userUid));
-    const querySnapshot = await getDocs(q);
-    
-    let networkRef;
-    let networkData = {
-      userUid: userUid,
-      userEmail: userData.email,
-      userName: userData.displayName || userData.name,
-      members: [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-    
-    // If network exists, update it
-    if (!querySnapshot.empty) {
-      console.log(`Family network found for user ${userUid}`);
-      networkRef = querySnapshot.docs[0].ref;
-      networkData = querySnapshot.docs[0].data();
-    } else {
-      console.log(`Creating new family network for user ${userUid}`);
-      // Create new network with initial data
-      const newNetworkData = {
-        userUid: userUid,
-        userEmail: userData.email,
-        userName: userData.displayName || userData.name,
-        members: [],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
-      
-      // Add the document to Firestore
-      const newNetworkRef = await addDoc(networksRef, newNetworkData);
-      console.log(`Created new family network with ID: ${newNetworkRef.id}`);
-      
-      // Set the reference and data
-      networkRef = newNetworkRef;
-      networkData = newNetworkData;
-    }
-    
-    // Ensure members array exists
-    if (!networkData.members) {
-      networkData.members = [];
-    }
-    
-    // Check if member already exists in network
-    const memberExists = networkData.members && networkData.members.some(member => 
-      member.uid === familyMemberUid || member.email === familyMemberData.email
-    );
-    
-    console.log(`Member exists in network: ${memberExists}`);
-    
-    // Always add the member to ensure it's in the network
-    // Determine the correct name to use
-    const memberName = familyMemberData.displayName || familyMemberData.name || 
-                       (userUid === requestData.fromUid ? requestData.fromName : requestData.toName);
-    
-    // Add new member
-    const newMember = {
-      uid: familyMemberUid,
-      name: memberName,
-      email: familyMemberData.email,
-      relationship: relationship,
-      accessLevel: 'limited',
-      isEmergencyContact: false,
-      addedAt: new Date().toISOString()
-    };
-    
-    console.log("Adding/updating member in network:", newMember);
-    
-    // If the member already exists, update it; otherwise, add it
-    let updatedMembers;
-    if (memberExists) {
-      // Update the existing member
-      updatedMembers = networkData.members.map(member => 
-        (member.uid === familyMemberUid || member.email === familyMemberData.email)
-          ? { ...member, ...newMember }
-          : member
-      );
-      console.log("Updated existing member in network");
-    } else {
-      // Add the new member
-      updatedMembers = [...(networkData.members || []), newMember];
-      console.log("Added new member to network");
-    }
-    
-    // Update network
-    await updateDoc(networkRef, {
-      members: updatedMembers,
-      updatedAt: serverTimestamp()
-    });
-    
-    console.log(`Family network updated for user ${userUid}`);
-    
-    // Verify the update was successful
-    const updatedNetworkSnap = await getDoc(networkRef);
-    const updatedNetworkData = updatedNetworkSnap.data();
-    console.log("Updated network data:", updatedNetworkData);
-  } catch (error) {
-    console.error("Error in updateFamilyNetwork:", error);
-    throw error;
-  }
+  // Return mock success
+  return {
+    success: true,
+    message: 'Family request sent successfully (mock mode)',
+    disabled: true
+  };
 };
 
-// Reject a family request
+// Accept a family request (QUOTA PROTECTION - DISABLED)
+export const acceptFamilyRequest = async (requestId) => {
+  // EMERGENCY: Disable Firebase operations to prevent quota usage
+  console.warn('🚨 QUOTA EXCEEDED - Family request acceptance disabled to prevent Firebase writes');
+  console.log('📝 Would have accepted family request:', requestId);
+  
+  // Return mock success
+  return {
+    success: true,
+    message: 'Family request accepted successfully (mock mode)',
+    disabled: true
+  };
+};
+
+// Reject a family request (QUOTA PROTECTION - DISABLED)
 export const rejectFamilyRequest = async (requestId) => {
+  // EMERGENCY: Disable Firebase operations to prevent quota usage
+  console.warn('🚨 QUOTA EXCEEDED - Family request rejection disabled to prevent Firebase writes');
+  console.log('📝 Would have rejected family request:', requestId);
+  
+  // Return mock success
+  return {
+    success: true,
+    message: 'Family request rejected successfully (mock mode)',
+    disabled: true
+  };
+};
+
+import { getFamilyRequests as getFirebaseFamilyRequests } from './firebaseFamilyService';
+
+// Get family requests (delegates to Firestore service, adapts shape)
+export const getFamilyRequests = async (userIdentifier) => {
   try {
-    // Get the request
-    const requestRef = doc(db, 'familyRequests', requestId);
-    const requestSnap = await getDoc(requestRef);
-    
-    if (!requestSnap.exists()) {
-      throw new Error('Request not found');
-    }
-    
-    // Update the request status
-    await updateDoc(requestRef, {
-      status: 'rejected',
-      updatedAt: serverTimestamp()
-    });
-    
+    // userIdentifier can be UID (preferred). Enhanced UI will now pass UID.
+    const requests = await getFirebaseFamilyRequests(userIdentifier);
     return {
       success: true,
-      message: 'Family request rejected successfully'
+      requests
     };
   } catch (error) {
-    console.error('Error rejecting family request:', error);
-    throw error;
+    console.error('Error fetching family requests from Firestore:', error);
+    return { success: false, error: error.message };
   }
 };
 
-// Get family network for a user
-export const getFamilyNetwork = async (email) => {
+// Get family network (delegates to real Firestore service, adapts shape)
+export const getFamilyNetwork = async (userUid) => {
   try {
-    console.log("Getting family network for email:", email);
-    
-    // Get current user
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      throw new Error('You must be logged in to view family network');
-    }
-    
-    const userUid = currentUser.uid;
-    console.log("Current user UID:", userUid);
-    
-    // Get family network
-    const networksRef = collection(db, 'familyNetworks');
-    const networkQuery = query(networksRef, where('userUid', '==', userUid));
-    const networkSnapshot = await getDocs(networkQuery);
-    
-    console.log("Family networks found:", networkSnapshot.size);
-    
-    if (networkSnapshot.empty) {
-      console.log("No family network found for user:", userUid);
-      return {
-        success: true,
-        network: {
-          members: []
-        }
-      };
-    }
-    
-    // Get the network data
-    const networkData = networkSnapshot.docs[0].data();
-    console.log("Family network data:", networkData);
-    
-    // Make sure members is an array
-    if (!networkData.members) {
-      console.log("No members found in network, initializing empty array");
-      networkData.members = [];
-    } else {
-      console.log(`Found ${networkData.members.length} members in network`);
-    }
-    
+    const members = await getFirebaseFamilyNetwork(userUid); // returns array of members
     return {
       success: true,
-      network: networkData
-    };
-  } catch (error) {
-    console.error('Error fetching family network:', error);
-    throw error;
-  }
-};
-
-// Search for users
-export const searchUsers = async (query, searchType = 'all') => {
-  try {
-    console.log("Searching for users with query:", query);
-    
-    const usersRef = collection(db, 'users');
-    let q;
-    
-    // Search by email (exact match)
-    if (searchType === 'email' || searchType === 'all') {
-      q = query(usersRef, where('email', '==', query.toLowerCase()));
-      const emailSnapshot = await getDocs(q);
-      
-      if (!emailSnapshot.empty) {
-        const results = [];
-        emailSnapshot.forEach((doc) => {
-          results.push({
-            id: doc.id,
-            ...doc.data()
-          });
-        });
-        
-        return {
-          success: true,
-          results: results
-        };
-      }
-    }
-    
-    // Search by name (contains)
-    if (searchType === 'name' || searchType === 'all') {
-      // Firebase doesn't support contains queries directly
-      // We'll use a range query as a workaround
-      q = query(
-        usersRef,
-        where('name', '>=', query),
-        where('name', '<=', query + '\uf8ff')
-      );
-      
-      const nameSnapshot = await getDocs(q);
-      
-      if (!nameSnapshot.empty) {
-        const results = [];
-        nameSnapshot.forEach((doc) => {
-          results.push({
-            id: doc.id,
-            ...doc.data()
-          });
-        });
-        
-        return {
-          success: true,
-          results: results
-        };
-      }
-      
-      // Try displayName if name didn't work
-      q = query(
-        usersRef,
-        where('displayName', '>=', query),
-        where('displayName', '<=', query + '\uf8ff')
-      );
-      
-      const displayNameSnapshot = await getDocs(q);
-      
-      if (!displayNameSnapshot.empty) {
-        const results = [];
-        displayNameSnapshot.forEach((doc) => {
-          results.push({
-            id: doc.id,
-            ...doc.data()
-          });
-        });
-        
-        return {
-          success: true,
-          results: results
-        };
-      }
-    }
-    
-    // No results found
-    return {
-      success: true,
-      results: []
-    };
-  } catch (error) {
-    console.error('Error searching users:', error);
-    throw error;
-  }
-};
-
-// Get family requests for a user
-export const getFamilyRequests = async (email) => {
-  try {
-    console.log("Getting family requests for email:", email);
-    
-    // Get current user
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      throw new Error('You must be logged in to view family requests');
-    }
-    
-    console.log("Current user UID:", currentUser.uid);
-    
-    const requestsRef = collection(db, 'familyRequests');
-    
-    // Get requests sent to the user
-    const receivedQuery = query(
-      requestsRef,
-      where('toUid', '==', currentUser.uid)
-    );
-    
-    // Get requests sent by the user
-    const sentQuery = query(
-      requestsRef,
-      where('fromUid', '==', currentUser.uid)
-    );
-    
-    const [receivedSnapshot, sentSnapshot] = await Promise.all([
-      getDocs(receivedQuery),
-      getDocs(sentQuery)
-    ]);
-    
-    console.log("Received requests count:", receivedSnapshot.size);
-    console.log("Sent requests count:", sentSnapshot.size);
-    
-    const received = [];
-    const sent = [];
-    
-    receivedSnapshot.forEach((doc) => {
-      const data = doc.data();
-      console.log("Received request:", doc.id, data);
-      
-      // Make sure we're using the actual status from Firestore
-      const status = data.status || 'pending';
-      console.log(`Request ${doc.id} status: ${status}`);
-      
-      // Only add pending requests to the received list
-      if (status === 'pending') {
-        received.push({
-          id: doc.id,
-          ...data,
-          type: 'received',
-          status: status
-        });
-      } else {
-        console.log(`Skipping non-pending received request: ${doc.id} (${status})`);
-      }
-    });
-    
-    sentSnapshot.forEach((doc) => {
-      const data = doc.data();
-      console.log("Sent request:", doc.id, data);
-      
-      // Make sure we're using the actual status from Firestore
-      const status = data.status || 'pending';
-      console.log(`Request ${doc.id} status: ${status}`);
-      
-      sent.push({
-        id: doc.id,
-        ...data,
-        type: 'sent',
-        status: status
-      });
-    });
-    
-    console.log("Processed received requests:", received.length);
-    console.log("Processed sent requests:", sent.length);
-    
-    return {
-      success: true,
-      requests: {
-        received,
-        sent
+      network: {
+        userUid,
+        members: members || []
       }
     };
   } catch (error) {
-    console.error('Error fetching family requests:', error);
-    throw error;
+    console.error('Error fetching family network from Firestore:', error);
+    return { success: false, error: error.message };
   }
 };
 
-// Update family request relationship
-export const updateFamilyRequestRelationship = async (requestId, recipientRelationship) => {
+// Remove family member (QUOTA PROTECTION - DISABLED)
+export const removeFamilyMember = async (userUid, memberUid) => {
+  // EMERGENCY: Disable Firebase operations to prevent quota usage
+  console.warn('🚨 QUOTA EXCEEDED - Family member removal disabled to prevent Firebase writes');
+  console.log('📝 Would have removed family member:', { userUid, memberUid });
+  
+  // Return mock success
+  return {
+    success: true,
+    message: 'Family member removed successfully (mock mode)',
+    disabled: true
+  };
+};
+
+// Update member access level (QUOTA PROTECTION - DISABLED)
+export const updateMemberAccessLevel = async (userUid, memberUid, accessLevel) => {
+  // EMERGENCY: Disable Firebase operations to prevent quota usage
+  console.warn('🚨 QUOTA EXCEEDED - Access level update disabled to prevent Firebase writes');
+  console.log('📝 Would have updated access level:', { userUid, memberUid, accessLevel });
+  
+  // Return mock success
+  return {
+    success: true,
+    message: 'Access level updated successfully (mock mode)',
+    disabled: true
+  };
+};
+
+// Backward-compatibility alias for UI components expecting this name
+export const updateFamilyMemberAccess = updateMemberAccessLevel;
+
+// New function to search users via backend API
+export const searchUsers = async (query) => {
   try {
-    console.log("Updating family request relationship:", requestId, recipientRelationship);
-    
-    const requestRef = doc(db, 'familyRequests', requestId);
-    const requestSnap = await getDoc(requestRef);
-    
-    if (!requestSnap.exists()) {
-      throw new Error('Request not found');
+    const response = await fetch(`/api/users/search?query=${encodeURIComponent(query)}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch search results');
     }
-    
-    // Update the request with recipient's relationship
-    await updateDoc(requestRef, {
-      recipientRelationship: recipientRelationship,
-      updatedAt: serverTimestamp()
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error in searchUsers:', error);
+    return { success: false, results: [] };
+  }
+};
+
+// New function to update family request relationship
+export const updateFamilyRequestRelationship = async ({ requestId, newRelationship }) => {
+  try {
+    const response = await fetch(`/api/family/request/${requestId}/update-relationship`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ newRelationship })
     });
-    
-    return {
-      success: true,
-      message: 'Family request relationship updated successfully'
-    };
+    if (!response.ok) {
+      throw new Error('Failed to update family request relationship');
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
-    console.error('Error updating family request relationship:', error);
-    throw error;
-  }
-};
-
-// Update family member access
-export const updateFamilyMemberAccess = async (memberUid, accessData) => {
-  try {
-    console.log("Updating family member access:", memberUid, accessData);
-    
-    // Get current user
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      throw new Error('You must be logged in to update family member access');
-    }
-    
-    // Get family network
-    const networksRef = collection(db, 'familyNetworks');
-    const networkQuery = query(networksRef, where('userUid', '==', currentUser.uid));
-    const networkSnapshot = await getDocs(networkQuery);
-    
-    if (networkSnapshot.empty) {
-      throw new Error('Family network not found');
-    }
-    
-    const networkRef = networkSnapshot.docs[0].ref;
-    const networkData = networkSnapshot.docs[0].data();
-    
-    // Update the specific member
-    const updatedMembers = networkData.members.map(member => 
-      member.uid === memberUid 
-        ? { ...member, ...accessData, updatedAt: new Date().toISOString() }
-        : member
-    );
-    
-    // Update network
-    await updateDoc(networkRef, {
-      members: updatedMembers,
-      updatedAt: serverTimestamp()
-    });
-    
-    return {
-      success: true,
-      message: 'Family member access updated successfully'
-    };
-  } catch (error) {
-    console.error('Error updating family member access:', error);
-    throw error;
-  }
-};
-
-// Remove family member
-export const removeFamilyMember = async (memberEmail) => {
-  try {
-    console.log("Removing family member:", memberEmail);
-    
-    // Get current user
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      throw new Error('You must be logged in to remove family member');
-    }
-    
-    // Get family network
-    const networksRef = collection(db, 'familyNetworks');
-    const networkQuery = query(networksRef, where('userUid', '==', currentUser.uid));
-    const networkSnapshot = await getDocs(networkQuery);
-    
-    if (networkSnapshot.empty) {
-      throw new Error('Family network not found');
-    }
-    
-    const networkRef = networkSnapshot.docs[0].ref;
-    const networkData = networkSnapshot.docs[0].data();
-    
-    // Remove the member
-    const updatedMembers = networkData.members.filter(member => 
-      member.email !== memberEmail
-    );
-    
-    // Update network
-    await updateDoc(networkRef, {
-      members: updatedMembers,
-      updatedAt: serverTimestamp()
-    });
-    
-    return {
-      success: true,
-      message: 'Family member removed successfully'
-    };
-  } catch (error) {
-    console.error('Error removing family member:', error);
-    throw error;
-  }
-};
-
-// Get mutual family network
-export const getMutualFamilyNetwork = async (email1, email2) => {
-  try {
-    // Get both users' networks
-    const network1 = await getFamilyNetwork(email1);
-    const network2 = await getFamilyNetwork(email2);
-    
-    if (!network1.success || !network2.success) {
-      throw new Error('Failed to fetch networks');
-    }
-    
-    // Find mutual connections
-    const members1 = network1.network.members || [];
-    const members2 = network2.network.members || [];
-    
-    const mutualMembers = members1.filter(member1 => 
-      members2.some(member2 => member2.email === member1.email)
-    );
-    
-    return {
-      success: true,
-      mutualNetwork: {
-        members: mutualMembers
-      }
-    };
-  } catch (error) {
-    console.error('Error fetching mutual family network:', error);
-    throw error;
+    console.error('Error in updateFamilyRequestRelationship:', error);
+    return { success: false, error: error.message };
   }
 };

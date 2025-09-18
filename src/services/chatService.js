@@ -14,7 +14,9 @@ import {
   query,
   where,
   orderBy,
+  increment,
 } from 'firebase/firestore';
+import { createChatMessageNotification } from './notificationService';
 
 const CHATS_COLLECTION = 'familyChats';
 
@@ -97,35 +99,53 @@ export const subscribeToMessages = (conversationId, callback) => {
   });
 };
 
-// Send a text message
+// Send a text message (enabled for Firestore writes)
 export const sendMessage = async ({ conversationId, senderId, text }) => {
+  if (!conversationId || !senderId) throw new Error('conversationId and senderId are required');
   if (!text || !text.trim()) return;
   const trimmed = text.trim();
 
-  const msgsRef = collection(db, CHATS_COLLECTION, conversationId, 'messages');
-  const newMsg = {
-    senderId,
-    text: trimmed,
-    type: 'text',
-    timestamp: serverTimestamp(),
-  };
-
-  await addDoc(msgsRef, newMsg);
-
-  // Update conversation metadata
+  // Load conversation
   const convoRef = doc(db, CHATS_COLLECTION, conversationId);
   const convoSnap = await getDoc(convoRef);
-  if (convoSnap.exists()) {
-    const convo = convoSnap.data();
-    const otherUid = convo.participants.find((u) => u !== senderId);
-    await updateDoc(convoRef, {
-      lastMessage: trimmed,
-      lastMessageTime: serverTimestamp(),
-      lastSenderId: senderId,
-      updatedAt: serverTimestamp(),
-      [`unread.${otherUid}`]: (convo.unread?.[otherUid] || 0) + 1,
-    });
+  if (!convoSnap.exists()) throw new Error('Conversation not found');
+  const convo = convoSnap.data();
+  const participants = Array.isArray(convo.participants) ? convo.participants : [];
+  const otherUid = participants.find((u) => u !== senderId);
+
+  // Add message
+  const msgsRef = collection(db, CHATS_COLLECTION, conversationId, 'messages');
+  const now = serverTimestamp();
+  await addDoc(msgsRef, {
+    text: trimmed,
+    senderId,
+    timestamp: now,
+    readBy: { [senderId]: now },
+    isDeleted: false,
+    deletedFor: {},
+  });
+
+  // Update conversation metadata and unread counter
+  const updates = {
+    lastMessage: trimmed,
+    lastMessageTime: now,
+    lastSenderId: senderId,
+  };
+  if (otherUid) {
+    updates[`unread.${otherUid}`] = increment(1);
   }
+  await updateDoc(convoRef, updates);
+
+  // Try to notify other participant (non-blocking)
+  try {
+    if (otherUid) {
+      await createChatMessageNotification(otherUid, {
+        text: trimmed,
+        fromUid: senderId,
+        conversationId,
+      });
+    }
+  } catch (_) {}
 };
 
 // Mark messages as read for current user

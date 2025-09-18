@@ -6,6 +6,11 @@ import {
   rejectFamilyRequest,
   updateFamilyRequestRelationship
 } from '../services/familyService';
+import { 
+  createFamilyRequestAcceptedNotification,
+  createNotification,
+  NOTIFICATION_TYPES 
+} from '../services/notificationService';
 import Button from './common/Button';
 
 const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
@@ -34,14 +39,14 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
     setError('');
     
     try {
-      console.log("Loading family requests for user:", currentUser.email);
-      const response = await getFamilyRequests(currentUser.email);
+      console.log("Loading family requests for user UID:", currentUser.uid);
+      const response = await getFamilyRequests(currentUser.uid);
       
       if (response.success) {
         console.log("Family requests loaded:", response.requests);
         
-        const filteredSent = response.requests.sent.filter(req => req.status === 'pending');
-        const filteredReceived = response.requests.received.filter(req => req.status === 'pending');
+        const filteredSent = (response.requests.sent || []).filter(req => req.status === 'pending');
+        const filteredReceived = (response.requests.received || []).filter(req => req.status === 'pending');
         
         setSentRequests(filteredSent);
         setReceivedRequests(filteredReceived);
@@ -75,6 +80,22 @@ const EnhancedFamilyRequestManager = ({ onUpdate, onNavigateToChat }) => {
       
       if (response.success) {
         console.log("Family request accepted successfully");
+        
+        // Find the request to get sender info
+        const acceptedRequest = receivedRequests.find(req => req.id === requestId);
+        
+        // Send notification to the sender
+        if (acceptedRequest) {
+          await createFamilyRequestAcceptedNotification(
+            acceptedRequest.fromUid,
+            {
+              uid: currentUser.uid,
+              name: currentUser.displayName || currentUser.email,
+              email: currentUser.email
+            },
+            recipientRelationship
+          );
+        }
         
         // Remove from received requests
         setReceivedRequests(prev => prev.filter(req => req.id !== requestId));

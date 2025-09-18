@@ -1,12 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import FamilyChat from "../components/FamilyChat";
+// Temporarily use mock services while fixing Firebase
+import { 
+  subscribeToNotifications, 
+  subscribeToConversations,
+  NOTIFICATION_TYPES 
+} from '../services/mockNotificationService';
+import { createTestNotifications } from '../utils/testNotifications';
+import { testFirestoreConnection, testFirestoreWrite, checkNotificationsCollection } from '../utils/debugFirestore';
 import GeminiChatbot from "../components/GeminiChatbot";
 import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";
 import EnhancedFamilyRequestManager from "../components/EnhancedFamilyRequestManager";
 import EnhancedFamilyNetworkManager from "../components/EnhancedFamilyNetworkManager";
 import FamilyNotificationSystem from "../components/FamilyNotificationSystem";
 import FamilyStatusIndicator from "../components/FamilyStatusIndicator";
+// import NotificationManager from "../components/NotificationManager";
+// import NotificationTest from "../components/NotificationTest";
+
+
 
 // Mock shared patient data
 const mockSharedPatient = {
@@ -62,11 +74,21 @@ const mockSharedRecords = [
 
 const EnhancedFamilyDashboard = () => {
   const { currentUser, userRole } = useAuth();
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(() => {
+    // Check if there's a saved tab from notification click
+    const savedTab = localStorage.getItem('familyDashboardTab');
+    if (savedTab) {
+      localStorage.removeItem('familyDashboardTab');
+      return parseInt(savedTab, 10);
+    }
+    return 0;
+  });
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [emergencyAccessExpiry, setEmergencyAccessExpiry] = useState(null);
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [conversations, setConversations] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [networkStats, setNetworkStats] = useState({
     totalMembers: 0,
@@ -74,6 +96,15 @@ const EnhancedFamilyDashboard = () => {
     emergencyContacts: 0,
     onlineMembers: 0
   });
+
+  // Check for tab switching from notifications
+  useEffect(() => {
+    const savedTab = localStorage.getItem('familyDashboardTab');
+    if (savedTab !== null) {
+      setActiveTab(parseInt(savedTab));
+      localStorage.removeItem('familyDashboardTab');
+    }
+  }, []);
 
   // Debug logging
   useEffect(() => {
@@ -95,6 +126,40 @@ const EnhancedFamilyDashboard = () => {
     
     setFilteredRecords(accessibleRecords);
   }, [isEmergencyMode]);
+
+  // Subscribe to notifications
+  useEffect(() => {
+    if (!currentUser) {
+      setNotifications([]);
+      return;
+    }
+
+    const unsubscribe = subscribeToNotifications(currentUser.uid, (notifs) => {
+      console.log('Notifications received:', notifs);
+      setNotifications(notifs);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [currentUser]);
+
+  // Subscribe to conversations for unread count
+  useEffect(() => {
+    if (!currentUser) {
+      setConversations([]);
+      return;
+    }
+
+    const unsubscribe = subscribeToConversations(currentUser.uid, (convos) => {
+      console.log('Conversations received:', convos);
+      setConversations(convos);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [currentUser]);
 
   const activateEmergencyAccess = () => {
     setIsEmergencyMode(true);
@@ -156,13 +221,81 @@ const EnhancedFamilyDashboard = () => {
   const handleNotificationClick = (notification) => {
     console.log("Notification clicked:", notification);
     
-    if (notification.type === 'family_request') {
-      setActiveTab(1); // Switch to family requests tab
-    } else if (notification.type === 'request_accepted') {
-      setActiveTab(2); // Switch to family network tab
-    } else if (notification.type === 'view_all') {
-      setActiveTab(1); // Default to requests tab
+    // Handle different notification types with proper redirection
+    switch (notification.type) {
+      case NOTIFICATION_TYPES.FAMILY_REQUEST:
+        setActiveTab(1); // Family Requests tab
+        break;
+      case NOTIFICATION_TYPES.FAMILY_REQUEST_ACCEPTED:
+      case NOTIFICATION_TYPES.FAMILY_REQUEST_REJECTED:
+        setActiveTab(2); // Family Network tab
+        break;
+      case NOTIFICATION_TYPES.CHAT_MESSAGE:
+        setActiveTab(3); // Family Chat tab
+        // If there's conversation data, we could store it for the chat component to use
+        if (notification.data?.conversationId) {
+          localStorage.setItem('openConversationId', notification.data.conversationId);
+        }
+        break;
+      case NOTIFICATION_TYPES.EMERGENCY_ALERT:
+        setActiveTab(0); // Overview tab for emergency
+        setIsEmergencyMode(true);
+        break;
+      case NOTIFICATION_TYPES.HEALTH_RECORD_SHARED:
+        setActiveTab(4); // Health Records tab
+        break;
+      case NOTIFICATION_TYPES.APPOINTMENT_REMINDER:
+      case NOTIFICATION_TYPES.MEDICATION_REMINDER:
+        setActiveTab(0); // Overview tab
+        break;
+      default:
+        // Fallback for legacy notifications
+        if (notification.tab !== undefined) {
+          setActiveTab(notification.tab);
+        } else {
+          setActiveTab(0); // Default to overview
+        }
+        break;
     }
+  };
+
+  // Test function for notifications
+  const handleTestNotifications = async () => {
+    if (!currentUser) return;
+    
+    console.log('Testing notifications...');
+    const result = await createTestNotifications(currentUser);
+    console.log('Test notification results:', result);
+    
+    if (result.error) {
+      alert('Error creating notifications: ' + result.error);
+    } else {
+      alert('Test notifications created! Check the notification bell.');
+    }
+  };
+
+  // Debug function for Firestore
+  const handleDebugFirestore = async () => {
+    if (!currentUser) return;
+    
+    console.log('🔍 Running Firestore debug tests...');
+    
+    // Test connection
+    const connectionTest = await testFirestoreConnection();
+    console.log('Connection test:', connectionTest);
+    
+    // Test write
+    const writeTest = await testFirestoreWrite();
+    console.log('Write test:', writeTest);
+    
+    // Check notifications
+    const notificationCheck = await checkNotificationsCollection(currentUser.uid);
+    console.log('Notification check:', notificationCheck);
+    
+    alert(`Debug complete! Check console for results.
+Connection: ${connectionTest.success ? '✅' : '❌'}
+Write: ${writeTest.success ? '✅' : '❌'}
+Notifications: ${notificationCheck.success ? notificationCheck.notifications.length + ' found' : '❌'}`);
   };
 
   const handleStatusClick = (action) => {
@@ -457,6 +590,25 @@ const EnhancedFamilyDashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* Test Buttons - Remove in production */}
+      <div className="mt-8 flex justify-center gap-4">
+        <button 
+          onClick={handleTestNotifications}
+          className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-xl px-6 py-3 hover:shadow-lg transition-all transform hover:-translate-y-1"
+        >
+          <span className="material-icons mr-2">notification_add</span>
+          Test Notifications
+        </button>
+        <button 
+          onClick={handleDebugFirestore}
+          className="bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl px-6 py-3 hover:shadow-lg transition-all transform hover:-translate-y-1"
+        >
+          <span className="material-icons mr-2">bug_report</span>
+          Debug Firestore
+        </button>
+      </div>
+
     </div>
   );
 
@@ -584,7 +736,10 @@ const EnhancedFamilyDashboard = () => {
     {
       label: "Family Chat",
       icon: <span className="material-icons text-lg">chat</span>,
-      badge: 3, // Mock unread messages
+      badge: conversations.reduce((total, conv) => {
+        const unreadCount = conv.unread?.[currentUser?.uid] || 0;
+        return total + unreadCount;
+      }, 0),
       description: "Chat with family"
     },
     {
@@ -663,10 +818,7 @@ const EnhancedFamilyDashboard = () => {
               ))}
             </nav>
 
-            {/* Notifications */}
-            <div className="mt-8 flex justify-center">
-              <FamilyNotificationSystem onNotificationClick={handleNotificationClick} />
-            </div>
+            {/* Notifications removed - using header notification instead */}
 
             {/* Emergency Status */}
             <div className="mt-4 p-4 bg-gray-50 rounded-xl">

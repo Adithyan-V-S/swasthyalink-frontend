@@ -11,6 +11,7 @@ import GeminiChatbot from './components/GeminiChatbot';
 import PrivateRoute from './components/PrivateRoute';
 import PublicRoute from './components/PublicRoute';
 import ErrorBoundary from './components/ErrorBoundary';
+import NotificationToast from './components/NotificationToast';
 import { AuthProvider } from './contexts/AuthContext';
 
 // Pages
@@ -30,11 +31,12 @@ import Profile from './pages/profile';
 function AppContent() {
   const location = useLocation();
   const hideHeaderFooterOn = ['/login', '/register', '/admindashboard'];
+  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/doctordashboard', '/familydashboard', '/settings'];
 
   return (
     <ErrorBoundary>
       {/* <CursorTrail /> */}
-      {!hideHeaderFooterOn.includes(location.pathname) && <Header />}
+      {(showHeaderOn.includes(location.pathname) || !hideHeaderFooterOn.includes(location.pathname)) && <Header />}
       <Routes>
         {/* Public Routes - No authentication required */}
         <Route path="/" element={<Home />} />
@@ -55,6 +57,7 @@ function AppContent() {
       {!hideHeaderFooterOn.includes(location.pathname) && <Footer />}
       {/* <Chatbot /> */}
       <GeminiChatbot />
+      <NotificationToast />
     </ErrorBoundary>
   );
 }

@@ -1,61 +1,32 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { subscribeToNotifications } from "../services/notificationService";
 import FamilyChat from "../components/FamilyChat";
 import GeminiChatbot from "../components/GeminiChatbot";
 import AddFamilyMember from "../components/AddFamilyMember";
 import FamilyRequestManager from "../components/FamilyRequestManager";
 import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";
 import FamilyNetworkManager from "../components/FamilyNetworkManager";
+import { subscribeToConversations } from "../services/chatService";
 
-// Mock shared patient data
+// Patient data will be loaded from real data
 const mockSharedPatient = {
-  name: "John Doe",
-  age: 45,
-  bloodGroup: "O+",
-  emergencyContacts: ["Sarah Doe", "Emma Doe"],
-  lastUpdated: "2024-01-15 14:30"
+  name: "Loading...",
+  age: "...",
+  bloodGroup: "...",
+  emergencyContacts: [],
+  lastUpdated: "..."
 };
 
-// Mock shared health records (filtered based on access level)
-const mockSharedRecords = [
-  {
-    id: 1,
-    date: "2024-05-01",
-    doctor: "Dr. A. Sharma",
-    diagnosis: "Hypertension",
-    prescription: "Amlodipine 5mg",
-    notes: "Monitor BP daily. Next visit in 1 month.",
-    accessLevel: "full",
-    isEmergency: false
-  },
-  {
-    id: 2,
-    date: "2024-03-15",
-    doctor: "Dr. R. Singh",
-    diagnosis: "Type 2 Diabetes",
-    prescription: "Metformin 500mg",
-    notes: "Maintain diet. Exercise regularly.",
-    accessLevel: "limited",
-    isEmergency: false
-  },
-  {
-    id: 3,
-    date: "2023-12-10",
-    doctor: "Dr. P. Verma",
-    diagnosis: "Seasonal Flu",
-    prescription: "Rest, Paracetamol",
-    notes: "Recovered. No complications.",
-    accessLevel: "emergency",
-    isEmergency: true
-  },
-];
+// Health records will be loaded from real data
+const mockSharedRecords = [];
 
-// Mock family member info
+// Family member info will be loaded from real data
 const mockFamilyMember = {
-  name: "Sarah Doe",
-  relationship: "Spouse",
-  accessLevel: "full",
-  avatar: "https://ui-avatars.com/api/?name=Sarah+Doe&background=10b981&color=fff&size=64"
+  name: "Loading...",
+  relationship: "...",
+  accessLevel: "limited",
+  avatar: "https://ui-avatars.com/api/?name=Loading&background=gray&color=fff&size=64"
 };
 
 const FamilyDashboard = () => {
@@ -66,36 +37,33 @@ const FamilyDashboard = () => {
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [showAddMember, setShowAddMember] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [familyMembers, setFamilyMembers] = useState([
-    {
-      id: 1,
-      name: 'John Doe',
-      email: 'john.doe@example.com',
-      phone: '+91 98765 43210',
-      relationship: 'Patient',
-      accessLevel: 'full',
-      isEmergencyContact: true,
-      enableChat: true,
-      avatar: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=64',
-      status: 'accepted',
-      lastAccess: '2024-01-15 14:30',
-      isOnline: true
-    },
-    {
-      id: 2,
-      name: 'Emma Doe',
-      email: 'emma.doe@example.com',
-      phone: '+91 98765 43211',
-      relationship: 'Daughter',
-      accessLevel: 'limited',
-      isEmergencyContact: false,
-      enableChat: true,
-      avatar: 'https://ui-avatars.com/api/?name=Emma+Doe&background=10b981&color=fff&size=64',
-      status: 'accepted',
-      lastAccess: '2024-01-14 10:15',
-      isOnline: false
-    }
-  ]);
+  const [notifications, setNotifications] = useState([]);
+
+  // Test function to create sample notifications (for debugging)
+  const createTestNotifications = () => {
+    const testNotifs = [
+      {
+        id: 'test1',
+        type: 'chat_message',
+        title: 'New message from John',
+        message: 'Hey, how are you feeling today?',
+        read: false,
+        timestamp: new Date()
+      },
+      {
+        id: 'test2',
+        type: 'family_request',
+        title: 'Family request from Sarah',
+        message: 'Sarah wants to join your family network',
+        read: false,
+        timestamp: new Date()
+      }
+    ];
+    setNotifications(testNotifs);
+    console.log('🧪 Created test notifications:', testNotifs);
+  };
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [conversations, setConversations] = useState([]);
 
   // Debug logging
   useEffect(() => {
@@ -103,6 +71,32 @@ const FamilyDashboard = () => {
     console.log("FamilyDashboard: currentUser:", currentUser);
     console.log("FamilyDashboard: userRole:", userRole);
   }, [currentUser, userRole]);
+
+  // Subscribe to notifications (real-time) and conversations for accurate badges
+  useEffect(() => {
+    if (!currentUser) {
+      setNotifications([]);
+      setConversations([]);
+      return;
+    }
+
+    console.log('🔔 FamilyDashboard: Subscribing (realtime) to notifications & conversations for:', currentUser.uid);
+
+    const unsubNotifs = subscribeToNotifications(currentUser.uid, (notifs) => {
+      console.log('📬 FamilyDashboard: Received notifications:', notifs?.length || 0);
+      setNotifications(notifs || []);
+    });
+
+    const unsubConvos = subscribeToConversations(currentUser.uid, (items) => {
+      console.log('💬 FamilyDashboard: Received conversations:', items?.length || 0);
+      setConversations(items || []);
+    });
+
+    return () => {
+      if (unsubNotifs) unsubNotifs();
+      if (unsubConvos) unsubConvos();
+    };
+  }, [currentUser]);
 
   // Remove the old useEffect since we're now using the auth context
 
@@ -176,6 +170,31 @@ const FamilyDashboard = () => {
     }
   };
 
+  // Calculate badges: chat unread from conversations.unread[currentUser.uid], others from notifications
+  const getNotificationBadges = () => {
+    const uid = currentUser?.uid;
+    // Chat unread from Firestore conversations
+    const chatUnread = uid ? (conversations || []).reduce((sum, c) => sum + (c?.unread?.[uid] || 0), 0) : 0;
+
+    // Notifications: unread and not deleted
+    const unreadNotifications = notifications.filter(n => !n.read && !n.deleted);
+    const familyRequestNotifications = unreadNotifications.filter(n => n.type === 'family_request');
+
+    console.log('🔔 Badge calculation:', {
+      convCount: conversations.length,
+      chatUnread,
+      notifTotal: notifications.length,
+      notifUnread: unreadNotifications.length,
+      familyRequestNotifications: familyRequestNotifications.length,
+    });
+
+    return {
+      chat: chatUnread,
+      familyRequests: familyRequestNotifications.length,
+      total: unreadNotifications.length
+    };
+  };
+
   // Show loading state if user data is not available
   if (!currentUser && userRole !== 'patient') {
     return (
@@ -217,7 +236,7 @@ const FamilyDashboard = () => {
         <div className="grid grid-cols-3 gap-3 w-full md:w-auto">
           <div className="bg-gradient-to-br from-indigo-500 to-blue-500 text-white rounded-xl px-4 py-3">
             <div className="text-xs opacity-80">Unread Chats</div>
-            <div className="text-2xl font-bold">3</div>
+            <div className="text-2xl font-bold">{badges.chat}</div>
           </div>
           <div className="bg-gradient-to-br from-emerald-500 to-teal-500 text-white rounded-xl px-4 py-3">
             <div className="text-xs opacity-80">Members</div>
@@ -541,6 +560,9 @@ const FamilyDashboard = () => {
     }
   };
 
+  // Get dynamic notification badges
+  const badges = getNotificationBadges();
+
   const sidebarLinks = [
     {
       label: "Overview",
@@ -552,12 +574,13 @@ const FamilyDashboard = () => {
     },
     {
       label: "Family Network",
-      icon: <span className="material-icons text-lg">family_restroom</span>
+      icon: <span className="material-icons text-lg">family_restroom</span>,
+      badge: badges.familyRequests > 0 ? badges.familyRequests : null
     },
     {
       label: "Family Chat",
       icon: <span className="material-icons text-lg">chat</span>,
-      badge: 3 // Unread messages count
+      badge: badges.chat > 0 ? badges.chat : null
     },
     {
       label: "Emergency",

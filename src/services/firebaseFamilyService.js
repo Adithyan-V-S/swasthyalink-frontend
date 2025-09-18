@@ -1,18 +1,25 @@
-import { db } from '../firebaseConfig';
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
+import { db, auth } from '../firebaseConfig';
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
   serverTimestamp,
   arrayUnion,
   arrayRemove,
-  deleteDoc
+  deleteDoc,
+  setDoc,
+  writeBatch
 } from 'firebase/firestore';
+import {
+  createFamilyRequestNotification,
+  createFamilyRequestAcceptedNotification,
+  createFamilyRequestRejectedNotification
+} from './notificationService';
 
 // Collection references
 const usersCollection = collection(db, 'users');
@@ -92,24 +99,24 @@ export const sendFamilyRequest = async (fromUid, fromEmail, fromName, toUid, toE
       where('toEmail', '==', toEmail),
       where('status', '==', 'pending')
     );
-    
+
     const existingSnapshot = await getDocs(existingQuery);
     if (!existingSnapshot.empty) {
       throw new Error('A pending request already exists for this user');
     }
-    
+
     // Check if already in family network
     const networkQuery = query(
       familyNetworksCollection,
       where('userUid', '==', fromUid),
       where('members', 'array-contains', { email: toEmail })
     );
-    
+
     const networkSnapshot = await getDocs(networkQuery);
     if (!networkSnapshot.empty) {
       throw new Error('This user is already in your family network');
     }
-    
+
     // Create the request
     const requestData = {
       fromUid,
@@ -123,29 +130,14 @@ export const sendFamilyRequest = async (fromUid, fromEmail, fromName, toUid, toE
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
-    
+
     const requestRef = await addDoc(familyRequestsCollection, requestData);
-    
-    // Add notification for recipient
+
+    // Create notification for recipient using centralized service (separate from batch for atomicity)
     if (toUid) {
-      const userRef = doc(usersCollection, toUid);
-      const userDoc = await getDoc(userRef);
-      
-      if (userDoc.exists()) {
-        await updateDoc(userRef, {
-          notifications: arrayUnion({
-            id: requestRef.id,
-            type: 'family_request',
-            fromName,
-            fromEmail,
-            relationship,
-            status: 'unread',
-            createdAt: new Date().toISOString()
-          })
-        });
-      }
+      await createFamilyRequestNotification(toUid, { uid: fromUid, name: fromName, email: fromEmail }, relationship);
     }
-    
+
     return {
       id: requestRef.id,
       ...requestData,
@@ -167,60 +159,69 @@ export const acceptFamilyRequest = async (requestId, currentUserUid) => {
   try {
     const requestRef = doc(familyRequestsCollection, requestId);
     const requestDoc = await getDoc(requestRef);
-    
+
     if (!requestDoc.exists()) {
       throw new Error('Request not found');
     }
-    
+
     const requestData = requestDoc.data();
-    
+
     // Verify this request is for the current user
     if (requestData.toUid && requestData.toUid !== currentUserUid) {
       throw new Error('You are not authorized to accept this request');
     }
-    
+
     if (requestData.status !== 'pending') {
       throw new Error('This request has already been processed');
     }
-    
+
+    // Use batch write to update request and add family network members atomically
+    const batch = writeBatch(db);
+
     // Update request status
-    await updateDoc(requestRef, {
+    batch.update(requestRef, {
       status: 'accepted',
       updatedAt: serverTimestamp()
     });
-    
+
     // Add to sender's family network
-    await addToFamilyNetwork(
-      requestData.fromUid,
-      requestData.toUid || currentUserUid,
-      requestData.toEmail,
-      requestData.toName,
-      requestData.relationship
-    );
-    
-    // Add to recipient's family network
-    await addToFamilyNetwork(
-      requestData.toUid || currentUserUid,
-      requestData.fromUid,
-      requestData.fromEmail,
-      requestData.fromName,
-      getInverseRelationship(requestData.relationship)
-    );
-    
-    // Add notification for sender
-    const senderRef = doc(usersCollection, requestData.fromUid);
-    await updateDoc(senderRef, {
-      notifications: arrayUnion({
-        id: requestId,
-        type: 'family_request_accepted',
-        fromName: requestData.toName,
-        fromEmail: requestData.toEmail,
-        relationship: requestData.relationship,
-        status: 'unread',
-        createdAt: new Date().toISOString()
-      })
+    const senderNetworkRef = doc(familyNetworksCollection, requestData.fromUid);
+    const senderMemberData = {
+      uid: requestData.toUid || currentUserUid,
+      email: requestData.toEmail,
+      name: requestData.toName,
+      relationship: requestData.relationship,
+      accessLevel: 'limited',
+      isEmergencyContact: false,
+      addedAt: new Date().toISOString()
+    };
+    batch.update(senderNetworkRef, {
+      members: arrayUnion(senderMemberData),
+      updatedAt: serverTimestamp()
     });
-    
+
+    // Add to recipient's family network
+    const recipientNetworkRef = doc(familyNetworksCollection, requestData.toUid || currentUserUid);
+    const recipientMemberData = {
+      uid: requestData.fromUid,
+      email: requestData.fromEmail,
+      name: requestData.fromName,
+      relationship: getInverseRelationship(requestData.relationship),
+      accessLevel: 'limited',
+      isEmergencyContact: false,
+      addedAt: new Date().toISOString()
+    };
+    batch.update(recipientNetworkRef, {
+      members: arrayUnion(recipientMemberData),
+      updatedAt: serverTimestamp()
+    });
+
+    // Commit batch
+    await batch.commit();
+
+    // Create notification for sender using centralized service (separate from batch)
+    await createFamilyRequestAcceptedNotification(requestData.fromUid, { uid: currentUserUid, name: requestData.toName, email: requestData.toEmail }, requestData.relationship);
+
     return {
       id: requestId,
       ...requestData,
@@ -243,42 +244,31 @@ export const rejectFamilyRequest = async (requestId, currentUserUid) => {
   try {
     const requestRef = doc(familyRequestsCollection, requestId);
     const requestDoc = await getDoc(requestRef);
-    
+
     if (!requestDoc.exists()) {
       throw new Error('Request not found');
     }
-    
+
     const requestData = requestDoc.data();
-    
+
     // Verify this request is for the current user
     if (requestData.toUid && requestData.toUid !== currentUserUid) {
       throw new Error('You are not authorized to reject this request');
     }
-    
+
     if (requestData.status !== 'pending') {
       throw new Error('This request has already been processed');
     }
-    
+
     // Update request status
     await updateDoc(requestRef, {
       status: 'rejected',
       updatedAt: serverTimestamp()
     });
-    
-    // Add notification for sender
-    const senderRef = doc(usersCollection, requestData.fromUid);
-    await updateDoc(senderRef, {
-      notifications: arrayUnion({
-        id: requestId,
-        type: 'family_request_rejected',
-        fromName: requestData.toName,
-        fromEmail: requestData.toEmail,
-        relationship: requestData.relationship,
-        status: 'unread',
-        createdAt: new Date().toISOString()
-      })
-    });
-    
+
+    // Create notification for sender using centralized service
+    await createFamilyRequestRejectedNotification(requestData.fromUid, { uid: currentUserUid, name: requestData.toName, email: requestData.toEmail }, requestData.relationship);
+
     return {
       id: requestId,
       ...requestData,
@@ -348,21 +338,15 @@ export const getFamilyRequests = async (userUid) => {
  */
 export const getFamilyNetwork = async (userUid) => {
   try {
-    const networkQuery = query(
-      familyNetworksCollection,
-      where('userUid', '==', userUid)
-    );
-    
-    const networkSnapshot = await getDocs(networkQuery);
-    
-    if (networkSnapshot.empty) {
+    // Read by UID doc to comply with rules match /familyNetworks/{userId}
+    const networkRef = doc(familyNetworksCollection, userUid);
+    const networkDoc = await getDoc(networkRef);
+
+    if (!networkDoc.exists()) {
       return [];
     }
-    
-    // Should only be one document per user
-    const networkDoc = networkSnapshot.docs[0];
+
     const networkData = networkDoc.data();
-    
     return networkData.members || [];
   } catch (error) {
     console.error('Error getting family network:', error);
@@ -378,26 +362,15 @@ export const getFamilyNetwork = async (userUid) => {
  */
 export const removeFamilyMember = async (userUid, memberEmail) => {
   try {
-    // Get current user to access email
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      throw new Error('User not authenticated');
-    }
+    // Get user's network document by fixed ID
+    const networkRef = doc(familyNetworksCollection, userUid);
+    const networkDocSnap = await getDoc(networkRef);
 
-    // Get user's network document
-    const networkQuery = query(
-      familyNetworksCollection,
-      where('userUid', '==', userUid)
-    );
-
-    const networkSnapshot = await getDocs(networkQuery);
-
-    if (networkSnapshot.empty) {
+    if (!networkDocSnap.exists()) {
       throw new Error('Family network not found');
     }
 
-    const networkDoc = networkSnapshot.docs[0];
-    const networkData = networkDoc.data();
+    const networkData = networkDocSnap.data();
 
     // Find the member to remove
     const memberToRemove = networkData.members.find(member => member.email === memberEmail);
@@ -406,9 +379,10 @@ export const removeFamilyMember = async (userUid, memberEmail) => {
       throw new Error('Member not found in family network');
     }
 
-    // Remove member from user's network
-    await updateDoc(doc(familyNetworksCollection, networkDoc.id), {
-      members: arrayRemove(memberToRemove),
+    // Remove member from user's network (rewrite members array for reliable update)
+    const filteredMembers = (networkData.members || []).filter(m => m.email !== memberEmail);
+    await updateDoc(networkRef, {
+      members: filteredMembers,
       updatedAt: serverTimestamp()
     });
 
@@ -430,9 +404,9 @@ export const removeFamilyMember = async (userUid, memberEmail) => {
       if (otherNetworkDoc.exists()) {
         const otherNetworkData = otherNetworkDoc.data();
 
-        // Find current user in the other network
+        // Find current user in the other network by UID
         const currentUserInOtherNetwork = otherNetworkData.members.find(
-          member => member.email === currentUser.email
+          member => member.uid === userUid
         );
 
         if (currentUserInOtherNetwork) {
@@ -481,17 +455,17 @@ const addToFamilyNetwork = async (userUid, memberUid, memberEmail, memberName, r
     };
     
     if (networkSnapshot.empty) {
-      // Create new network document
-      await addDoc(familyNetworksCollection, {
+      // Create new network document whose doc ID is the userUid (aligns with rules)
+      await setDoc(doc(familyNetworksCollection, userUid), {
         userUid: userUid,
         members: [memberData],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
     } else {
-      // Update existing network document
-      const networkDoc = networkSnapshot.docs[0];
-      await updateDoc(doc(familyNetworksCollection, networkDoc.id), {
+      // Update existing network document (use UID as key if present)
+      const existingDocId = networkSnapshot.docs[0]?.id || userUid;
+      await updateDoc(doc(familyNetworksCollection, existingDocId), {
         members: arrayUnion(memberData),
         updatedAt: serverTimestamp()
       });
@@ -512,28 +486,22 @@ const addToFamilyNetwork = async (userUid, memberUid, memberEmail, memberName, r
  */
 export const updateFamilyMemberAccess = async (userUid, memberEmail, accessLevel, isEmergencyContact) => {
   try {
-    // Get user's network document
-    const networkQuery = query(
-      familyNetworksCollection,
-      where('userUid', '==', userUid)
-    );
-    
-    const networkSnapshot = await getDocs(networkQuery);
-    
-    if (networkSnapshot.empty) {
+    // Get user's network document by UID
+    const networkRef = doc(familyNetworksCollection, userUid);
+    const networkSnap = await getDoc(networkRef);
+
+    if (!networkSnap.exists()) {
       throw new Error('Family network not found');
     }
-    
-    const networkDoc = networkSnapshot.docs[0];
-    const networkData = networkDoc.data();
-    
+
+    const networkData = networkSnap.data();
+
     // Find the member to update
-    const memberIndex = networkData.members.findIndex(member => member.email === memberEmail);
-    
+    const memberIndex = (networkData.members || []).findIndex(member => member.email === memberEmail);
     if (memberIndex === -1) {
       throw new Error('Member not found in family network');
     }
-    
+
     // Create updated members array
     const updatedMembers = [...networkData.members];
     updatedMembers[memberIndex] = {
@@ -542,13 +510,13 @@ export const updateFamilyMemberAccess = async (userUid, memberEmail, accessLevel
       isEmergencyContact,
       updatedAt: new Date().toISOString()
     };
-    
+
     // Update the document
-    await updateDoc(doc(familyNetworksCollection, networkDoc.id), {
+    await updateDoc(networkRef, {
       members: updatedMembers,
       updatedAt: serverTimestamp()
     });
-    
+
     return true;
   } catch (error) {
     console.error('Error updating family member access:', error);

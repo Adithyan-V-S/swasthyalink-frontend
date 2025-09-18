@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../firebaseConfig";
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
-import NotificationCenter from "./NotificationCenter";
+import EnhancedNotificationCenter from "./EnhancedNotificationCenter";
 import Sidebar from "./Sidebar";
 import { useAuth } from "../contexts/AuthContext";
 import QRCode from "react-qr-code";
@@ -114,8 +114,10 @@ const Header = () => {
     setProfileMenuOpen(false);
   };
 
+  console.log('🔍 Header rendering for user:', currentUser?.uid, 'isAuthenticated:', isAuthenticated);
+  
   return (
-    <header className="sticky top-0 z-[60] backdrop-blur-sm bg-white/40 supports-[backdrop-filter]:bg-white/30 border-b border-white/40 shadow">
+    <header className="sticky top-0 z-[60] bg-white border-b border-gray-200 shadow-sm">
       <nav className="w-full flex flex-wrap items-center justify-between py-2 px-6 min-h-[50px]">
         {/* Left section: hamburger + logo */}
         <div className="flex items-center space-x-3 h-full">
@@ -138,12 +140,7 @@ const Header = () => {
             <>
               <Sidebar open={sidebarOpen} onClose={closeSidebar} />
               <div className="flex items-center gap-3">
-                <NotificationCenter 
-                  notifications={notifications}
-                  onMarkAsRead={handleMarkAsRead}
-                  onClearAll={handleClearAll}
-                  onItemClick={handleNotificationClick}
-                />
+                <EnhancedNotificationCenter />
                 {/* Profile menu */}
                 <div className="relative" ref={profileMenuRef}>
                   <button

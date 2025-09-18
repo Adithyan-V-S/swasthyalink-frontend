@@ -4,6 +4,13 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 5174, // Match the port configured in Google OAuth
+    strictPort: true, // Fail if port is not available
+    // Remove COOP headers to allow Google OAuth popup
+    // headers: {
+    //   'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+    //   'Cross-Origin-Embedder-Policy': 'unsafe-none'
+    // },
     proxy: {
       '/api': {
         target: 'http://localhost:3001',

@@ -24,6 +24,19 @@ export const getUserProfile = async (userId) => {
 export const updateUserProfile = async (userId, profileData) => {
   try {
     const docRef = doc(db, PROFILE_COLLECTION, userId);
+    const docSnap = await getDoc(docRef);
+    const existingData = docSnap.exists() ? docSnap.data() : {};
+
+    // Check if data has actually changed to avoid unnecessary writes
+    const hasChanged = Object.keys(profileData).some(key => {
+      return existingData[key] !== profileData[key];
+    });
+
+    if (!hasChanged) {
+      console.log("Profile data unchanged, skipping write");
+      return { success: true, skipped: true };
+    }
+
     await setDoc(docRef, profileData, { merge: true });
     return { success: true };
   } catch (error) {

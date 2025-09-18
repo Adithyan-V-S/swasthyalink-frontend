@@ -1,98 +1,101 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getFamilyRequests } from '../services/familyService';
+import { 
+  subscribeToNotifications, 
+  markNotificationAsRead, 
+  NOTIFICATION_TYPES 
+} from '../services/notificationService';
+import { useNavigate } from 'react-router-dom';
 
 const FamilyNotificationSystem = ({ onNotificationClick }) => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (currentUser) {
-      loadNotifications();
-      
-      // Set up periodic refresh
-      const interval = setInterval(loadNotifications, 30000); // Every 30 seconds
-      return () => clearInterval(interval);
-    }
+    if (!currentUser) return;
+
+    const unsubscribe = subscribeToNotifications(currentUser.uid, (notificationList) => {
+      setNotifications(notificationList);
+      setUnreadCount(notificationList.filter(n => !n.read).length);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [currentUser]);
 
-  const loadNotifications = async () => {
-    if (!currentUser) return;
-    
-    setLoading(true);
+  const markAsRead = async (notificationId) => {
     try {
-      const response = await getFamilyRequests(currentUser.email);
-      
-      if (response.success) {
-        const pendingReceived = response.requests.received.filter(req => req.status === 'pending');
-        const recentAccepted = response.requests.sent
-          .filter(req => req.status === 'accepted')
-          .filter(req => {
-            const requestDate = new Date(req.updatedAt || req.createdAt);
-            const dayAgo = new Date();
-            dayAgo.setDate(dayAgo.getDate() - 1);
-            return requestDate > dayAgo;
-          });
-
-        const allNotifications = [
-          ...pendingReceived.map(req => ({
-            id: req.id,
-            type: 'family_request',
-            title: 'New Family Request',
-            message: `${req.fromName} wants to add you as their ${req.relationship}`,
-            timestamp: req.createdAt,
-            isRead: false,
-            data: req
-          })),
-          ...recentAccepted.map(req => ({
-            id: `accepted_${req.id}`,
-            type: 'request_accepted',
-            title: 'Request Accepted',
-            message: `${req.toName} accepted your family request`,
-            timestamp: req.updatedAt || req.createdAt,
-            isRead: false,
-            data: req
-          }))
-        ];
-
-        // Sort by timestamp (newest first)
-        allNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-        setNotifications(allNotifications);
-        setUnreadCount(allNotifications.filter(n => !n.isRead).length);
-      }
+      await markNotificationAsRead(notificationId);
     } catch (error) {
-      console.error('Error loading notifications:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error marking notification as read:', error);
     }
   };
 
-  const markAsRead = (notificationId) => {
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.id === notificationId 
-          ? { ...notification, isRead: true }
-          : notification
-      )
-    );
-    setUnreadCount(prev => Math.max(0, prev - 1));
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(n => !n.read);
+      await Promise.all(
+        unreadNotifications.map(notification => 
+          markNotificationAsRead(notification.id)
+        )
+      );
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    setUnreadCount(0);
-  };
+  const handleNotificationClick = async (notification) => {
+    // Mark as read
+    if (!notification.read) {
+      await markAsRead(notification.id);
+    }
 
-  const handleNotificationClick = (notification) => {
-    markAsRead(notification.id);
     setShowDropdown(false);
-    
-    if (onNotificationClick) {
-      onNotificationClick(notification);
+
+    // Navigate based on notification type
+    switch (notification.type) {
+      case NOTIFICATION_TYPES.FAMILY_REQUEST:
+        localStorage.setItem('familyDashboardTab', '1');
+        if (onNotificationClick) {
+          onNotificationClick({ type: 'family_request', tab: 1 });
+        }
+        break;
+      
+      case NOTIFICATION_TYPES.FAMILY_REQUEST_ACCEPTED:
+      case NOTIFICATION_TYPES.FAMILY_REQUEST_REJECTED:
+        localStorage.setItem('familyDashboardTab', '2');
+        if (onNotificationClick) {
+          onNotificationClick({ type: 'family_network', tab: 2 });
+        }
+        break;
+      
+      case NOTIFICATION_TYPES.CHAT_MESSAGE:
+        localStorage.setItem('familyDashboardTab', '3');
+        if (notification.data?.conversationId) {
+          localStorage.setItem('openConversationId', notification.data.conversationId);
+        }
+        if (onNotificationClick) {
+          onNotificationClick({ type: 'chat', tab: 3 });
+        }
+        break;
+      
+      case NOTIFICATION_TYPES.EMERGENCY_ALERT:
+        localStorage.setItem('familyDashboardTab', '0');
+        if (onNotificationClick) {
+          onNotificationClick({ type: 'emergency', tab: 0 });
+        }
+        break;
+      
+      default:
+        if (onNotificationClick) {
+          onNotificationClick(notification);
+        }
+        break;
     }
   };
 
@@ -109,10 +112,18 @@ const FamilyNotificationSystem = ({ onNotificationClick }) => {
 
   const getNotificationIcon = (type) => {
     switch (type) {
-      case 'family_request':
+      case NOTIFICATION_TYPES.FAMILY_REQUEST:
         return <span className="material-icons text-blue-600">person_add</span>;
-      case 'request_accepted':
+      case NOTIFICATION_TYPES.FAMILY_REQUEST_ACCEPTED:
         return <span className="material-icons text-green-600">check_circle</span>;
+      case NOTIFICATION_TYPES.FAMILY_REQUEST_REJECTED:
+        return <span className="material-icons text-red-600">cancel</span>;
+      case NOTIFICATION_TYPES.CHAT_MESSAGE:
+        return <span className="material-icons text-indigo-600">chat</span>;
+      case NOTIFICATION_TYPES.EMERGENCY_ALERT:
+        return <span className="material-icons text-red-600">warning</span>;
+      case NOTIFICATION_TYPES.HEALTH_RECORD_SHARED:
+        return <span className="material-icons text-purple-600">medical_services</span>;
       default:
         return <span className="material-icons text-gray-600">notifications</span>;
     }
@@ -158,15 +169,9 @@ const FamilyNotificationSystem = ({ onNotificationClick }) => {
                       Mark all read
                     </button>
                   )}
-                  <button
-                    onClick={loadNotifications}
-                    disabled={loading}
-                    className="p-1 text-gray-500 hover:text-gray-700 rounded"
-                  >
-                    <span className={`material-icons text-sm ${loading ? 'animate-spin' : ''}`}>
-                      refresh
-                    </span>
-                  </button>
+                  <span className="text-xs text-gray-500">
+                    Real-time
+                  </span>
                 </div>
               </div>
             </div>
@@ -187,7 +192,7 @@ const FamilyNotificationSystem = ({ onNotificationClick }) => {
                       key={notification.id}
                       onClick={() => handleNotificationClick(notification)}
                       className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                        !notification.isRead ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                        !notification.read ? 'bg-blue-50 border-l-4 border-blue-500' : ''
                       }`}
                     >
                       <div className="flex items-start space-x-3">
@@ -197,11 +202,11 @@ const FamilyNotificationSystem = ({ onNotificationClick }) => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <p className={`text-sm font-medium ${
-                              !notification.isRead ? 'text-gray-900' : 'text-gray-700'
+                              !notification.read ? 'text-gray-900' : 'text-gray-700'
                             }`}>
                               {notification.title}
                             </p>
-                            {!notification.isRead && (
+                            {!notification.read && (
                               <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
                             )}
                           </div>
@@ -209,7 +214,7 @@ const FamilyNotificationSystem = ({ onNotificationClick }) => {
                             {notification.message}
                           </p>
                           <p className="text-xs text-gray-500 mt-2">
-                            {formatTimestamp(notification.timestamp)}
+                            {formatTimestamp(notification.createdAt?.toDate?.() || notification.createdAt)}
                           </p>
                         </div>
                       </div>

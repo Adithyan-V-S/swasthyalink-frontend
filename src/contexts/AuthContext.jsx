@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { initializePresenceTracking, cleanupPresenceTracking } from '../services/presenceService';
 
 const AuthContext = createContext();
 
@@ -23,6 +24,21 @@ export const AuthProvider = ({ children }) => {
     const presetAdmin = localStorage.getItem('presetAdmin') === 'true';
     setIsPresetAdmin(presetAdmin);
 
+    // Check for test user
+    const testUser = localStorage.getItem('testUser');
+    const testUserRole = localStorage.getItem('testUserRole');
+    
+    if (testUser && testUserRole) {
+      console.log('🧪 Using test user from localStorage');
+      const mockUser = JSON.parse(testUser);
+      console.log('🧪 Test user data:', mockUser);
+      console.log('🧪 Test user role:', testUserRole);
+      setCurrentUser(mockUser);
+      setUserRole(testUserRole);
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         setCurrentUser(user);
@@ -43,6 +59,9 @@ export const AuthProvider = ({ children }) => {
             try {
               await updateDoc(userDocRef, { lastActive: serverTimestamp() });
             } catch {}
+
+            // Initialize presence tracking
+            initializePresenceTracking(user.uid);
           } else {
             console.log("AuthContext: No user document found in Firestore");
             // If no user document exists, create one with patient role
@@ -60,6 +79,9 @@ export const AuthProvider = ({ children }) => {
               await setDoc(doc(db, "users", user.uid), userData);
               console.log("AuthContext: New user document created successfully");
               setUserRole("patient");
+              
+              // Initialize presence tracking for new user
+              initializePresenceTracking(user.uid);
             } catch (createError) {
               console.error("AuthContext: Error creating user document:", createError);
               setUserRole(null);
@@ -70,6 +92,8 @@ export const AuthProvider = ({ children }) => {
           setUserRole(null);
         }
       } else {
+        // Cleanup presence tracking on logout
+        cleanupPresenceTracking();
         setCurrentUser(null);
         setUserRole(null);
       }
@@ -84,6 +108,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const isEmailVerified = () => {
+    // Handle test user
+    if (localStorage.getItem('testUser')) {
+      return true;
+    }
     return currentUser?.emailVerified || isPresetAdmin;
   };
 
@@ -93,22 +121,49 @@ export const AuthProvider = ({ children }) => {
   };
 
   const canAccessRoute = (requiredRole = null) => {
-    if (!isAuthenticated()) return false;
-    if (!isEmailVerified()) return false;
+    console.log('🔐 Checking route access:', {
+      requiredRole,
+      isAuthenticated: isAuthenticated(),
+      isEmailVerified: isEmailVerified(),
+      userRole: getUserRole()
+    });
+    
+    if (!isAuthenticated()) {
+      console.log('🔐 Access denied: Not authenticated');
+      return false;
+    }
+    if (!isEmailVerified()) {
+      console.log('🔐 Access denied: Email not verified');
+      return false;
+    }
     
     if (requiredRole) {
       // Special handling for family dashboard - patients can access it
       if (requiredRole === 'family' && getUserRole() === 'patient') {
+        console.log('🔐 Access granted: Patient can access family dashboard');
         return true;
       }
-      return getUserRole() === requiredRole;
+      const hasAccess = getUserRole() === requiredRole;
+      console.log('🔐 Role check result:', hasAccess);
+      return hasAccess;
     }
     
+    console.log('🔐 Access granted: No role requirement');
     return true;
   };
 
   const logout = async () => {
     try {
+      // Handle test user logout
+      if (localStorage.getItem('testUser')) {
+        console.log('🧪 Logging out test user');
+        localStorage.removeItem('testUser');
+        localStorage.removeItem('testUserRole');
+        setCurrentUser(null);
+        setUserRole(null);
+        return;
+      }
+      
       await auth.signOut();
       localStorage.removeItem('presetAdmin');
       setIsPresetAdmin(false);

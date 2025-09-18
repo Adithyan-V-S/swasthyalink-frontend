@@ -4,6 +4,8 @@ import { auth } from "../firebaseConfig";
 import SnakeGame from "./SnakeGame";
 import heroImage from "../assets/images/hero-healthcare.jpg";
 import { useAuth } from "../contexts/AuthContext";
+import { subscribeToNotifications } from "../services/notificationService";
+import { createTestNotifications } from "../utils/testNotifications";
 
 const records = [
   {
@@ -100,7 +102,8 @@ const mockNotifications = [
   }
 ];
 
-const sidebarLinks = [
+// Move sidebarLinks inside component to access notifications state
+const getSidebarLinks = (notifications) => [
   { label: "Dashboard", icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M13 5v6h6m-6 0v6m0 0H7m6 0h6" /></svg>
     ) },
@@ -109,22 +112,19 @@ const sidebarLinks = [
     ) },
   { label: "Family", icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-    ), badge: mockNotifications.filter(n => !n.read).length },
+    ), badge: notifications.filter(n => !n.read && (n.type === 'family_request' || n.type === 'chat_message')).length },
   { label: "Appointments", icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-    ), badge: 2 },
+    ), badge: notifications.filter(n => !n.read && n.type === 'appointment').length },
   { label: "Prescriptions", icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 4h6a2 2 0 002-2v-5a2 2 0 00-2-2h-6a2 2 0 00-2 2v5a2 2 0 002 2z" /></svg>
-    ) },
+    ), badge: notifications.filter(n => !n.read && n.type === 'health_record').length },
   { label: "Doctors", icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 7v-7m0 0l-9-5m9 5l9-5" /></svg>
     ) },
   { label: "Settings", icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
     ) },
-  // { label: "Logout", icon: (
-  //     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h4a2 2 0 012 2v1" /></svg>
-  //   ) },
   { label: "Game", icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6h13M9 6l-7 7 7 7" /></svg>
     ) },
@@ -136,12 +136,27 @@ const helpSupportLink = { label: "Help & Support", icon: (
 
 const PatientDashboard = () => {
   const [uid, setUid] = useState("");
-  const currentUserInfo = useCurrentUser();
+  const { currentUser } = useAuth();
+  
+  // Safe user info with fallback
+  let currentUserInfo;
+  try {
+    currentUserInfo = useCurrentUser();
+  } catch (err) {
+    console.error('Error getting user info:', err);
+    currentUserInfo = {
+      name: 'Patient User',
+      email: 'patient@example.com',
+      avatar: 'https://ui-avatars.com/api/?name=Patient&background=4f46e5&color=fff&size=64'
+    };
+  }
   const [activeIdx, setActiveIdx] = useState(0);
   const [familyMembers, setFamilyMembers] = useState(mockFamilyMembers);
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState([]);
   const [showAddFamily, setShowAddFamily] = useState(false);
   const [showEmergencyAccess, setShowEmergencyAccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [newFamilyMember, setNewFamilyMember] = useState({
     name: "",
     relationship: "",
@@ -153,10 +168,56 @@ const PatientDashboard = () => {
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) setUid(user.uid);
+      if (user) {
+        setUid(user.uid);
+        setIsLoading(false);
+      } else {
+        setIsLoading(false);
+      }
     });
     return () => unsubscribe();
   }, []);
+
+  // Subscribe to real notifications with fallback
+  useEffect(() => {
+    if (!currentUser) {
+      setNotifications([]);
+      return;
+    }
+
+    const unsubscribe = subscribeToNotifications(currentUser.uid, (notifs) => {
+      console.log('📬 PatientDashboard: Received notifications:', notifs);
+      setNotifications(notifs || []);
+    });
+
+    // Fallback: If Firebase fails, use mock notifications for testing
+    const fallbackTimer = setTimeout(() => {
+      if (notifications.length === 0) {
+        console.log('🔄 Using fallback notifications due to Firebase issues');
+        setNotifications([
+          {
+            id: 'fallback-1',
+            type: 'chat_message',
+            message: 'New message from family member',
+            timestamp: new Date(),
+            read: false
+          },
+          {
+            id: 'fallback-2',
+            type: 'appointment',
+            message: 'Appointment reminder for tomorrow',
+            timestamp: new Date(),
+            read: false
+          }
+        ]);
+      }
+    }, 3000);
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+      clearTimeout(fallbackTimer);
+    };
+  }, [currentUser]);
 
   const qrValue = uid ? `https://yourapp.com/patient/${uid}` : "";
 
@@ -394,7 +455,8 @@ const PatientDashboard = () => {
   );
 
   const renderMainContent = () => {
-    switch (activeIdx) {
+    try {
+      switch (activeIdx) {
       case 0: // Dashboard
         return (
           <>
@@ -404,7 +466,7 @@ const PatientDashboard = () => {
               <div className="lg:col-span-6 bg-white rounded-2xl shadow-lg p-8 flex items-center justify-between">
                 <div>
                   {/* Use current user's first name if available */}
-                  <h1 className="text-3xl font-extrabold text-gray-900">Hey, {useCurrentUser().name.split(' ')[0]}!</h1>
+                  <h1 className="text-3xl font-extrabold text-gray-900">Hey, {currentUserInfo.name.split(' ')[0]}!</h1>
                   <p className="mt-2 text-gray-600">Let's monitor your health.</p>
                   <div className="mt-6 flex gap-3">
                     <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm">HRV 84 ms</span>
@@ -471,6 +533,12 @@ const PatientDashboard = () => {
                   <button className="w-full flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-xl px-3 py-2">
                     <span className="text-sm text-gray-700">Glucose Level</span>
                     <span className="text-sm font-semibold text-gray-900">9.0 mmol/L ↗</span>
+                  </button>
+                  <button 
+                    onClick={() => createTestNotifications(currentUser)}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded-xl px-3 py-2 text-sm font-medium"
+                  >
+                    🧪 Test Notifications
                   </button>
                 </div>
               </div>
@@ -614,8 +682,53 @@ const PatientDashboard = () => {
         );
       default:
         return null;
+      }
+    } catch (error) {
+      console.error('Error rendering main content:', error);
+      return (
+        <div className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Content</h2>
+          <p className="text-gray-600">There was an issue loading the dashboard content. Please refresh the page.</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+          >
+            Refresh Page
+          </button>
+        </div>
+      );
     }
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <main className="min-h-[80vh] bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-10 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <main className="min-h-[80vh] bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-10 flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-[80vh] bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-10 flex flex-row items-start">
@@ -629,7 +742,7 @@ const PatientDashboard = () => {
             <div className="text-xs text-gray-500 whitespace-nowrap">{currentUserInfo.email}</div>
           </div>
           <div className="text-2xl font-bold text-indigo-700 mb-6 text-center">Menu</div>
-          {sidebarLinks.map((link, idx) => (
+          {getSidebarLinks(notifications).map((link, idx) => (
             <button
               key={idx}
               className={`flex items-center gap-3 px-4 py-2 rounded-lg font-medium transition-colors relative w-full ${activeIdx === idx ? 'bg-indigo-100 text-indigo-900 font-bold' : 'hover:bg-indigo-100 text-indigo-700'}`}
@@ -638,7 +751,7 @@ const PatientDashboard = () => {
             >
               {link.icon}
               <span className="ml-2 whitespace-nowrap">{link.label}</span>
-              {link.badge && (
+              {link.badge && link.badge > 0 && (
                 <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5 font-bold animate-pulse">{link.badge}</span>
               )}
             </button>

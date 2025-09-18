@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDate } from '../utils/helpers';
+import { 
+  subscribeToMultipleUsersPresence, 
+  getPresenceStatusColor, 
+  formatPresenceStatus,
+  initializePresenceTracking 
+} from '../services/presenceService';
+// Temporarily use mock services while fixing Firebase
 import {
   subscribeToConversations,
   subscribeToMessages,
@@ -12,6 +19,8 @@ import {
   deleteMessageForMe,
   deleteMessageForEveryone,
 } from '../services/chatService';
+
+// Using real Firebase services now
 import { getFamilyNetwork as getFamilyNetworkLegacy } from '../services/familyService';
 
 // Small helper for Firestore Timestamp/Date/string
@@ -29,6 +38,7 @@ const FamilyChat = () => {
   const [conversations, setConversations] = useState([]); // Firestore conversations
   const [familyMembers, setFamilyMembers] = useState([]); // From family network
   const [searchQuery, setSearchQuery] = useState('');
+  const [presenceData, setPresenceData] = useState({}); // User presence status
 
   // Right pane - messages
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -43,8 +53,15 @@ const FamilyChat = () => {
   useEffect(() => {
     if (!currentUser) return;
 
-    // Subscribe to user's conversations
+    // Initialize presence tracking for current user
+    const cleanupPresence = initializePresenceTracking(currentUser.uid);
+
+    // Subscribe to user's conversations (using real Firebase service)
     const unsubConvos = subscribeToConversations(currentUser.uid, (items) => {
+      // Only log when conversations actually change
+      if (items && items.length !== conversations.length) {
+        console.log('💬 FamilyChat: Loaded', items.length, 'conversations');
+      }
       setConversations(items || []);
     });
 
@@ -54,6 +71,19 @@ const FamilyChat = () => {
         const res = await getFamilyNetworkLegacy(currentUser.email);
         const members = res?.network?.members || [];
         setFamilyMembers(members);
+
+        // Subscribe to presence for all family members
+        const memberIds = members.map(m => m.uid).filter(Boolean);
+        if (memberIds.length > 0) {
+          const unsubPresence = subscribeToMultipleUsersPresence(memberIds, (presenceUpdates) => {
+            setPresenceData(presenceUpdates);
+          });
+          
+          // Store unsubscribe function for cleanup
+          return () => {
+            if (unsubPresence) unsubPresence();
+          };
+        }
 
         // Optional: auto-start chat if a member was selected elsewhere
         try {
@@ -68,6 +98,21 @@ const FamilyChat = () => {
             }
           }
         } catch {}
+
+        // Check if we need to open a specific conversation from notification
+        try {
+          const conversationId = localStorage.getItem('openConversationId');
+          if (conversationId) {
+            localStorage.removeItem('openConversationId');
+            // Find and open the conversation
+            const conversation = conversations.find(c => c.id === conversationId);
+            if (conversation) {
+              openConversation(conversation);
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to open conversation from notification:", err);
+        }
       } catch (e) {
         console.error('Failed to load family network:', e);
         setFamilyMembers([]);
@@ -77,6 +122,7 @@ const FamilyChat = () => {
     return () => {
       unsubConvos && unsubConvos();
       if (conversationUnsubRef.current) conversationUnsubRef.current();
+      if (cleanupPresence) cleanupPresence();
     };
   }, [currentUser]);
 
@@ -152,6 +198,10 @@ const FamilyChat = () => {
   let unsub = null;
   try {
     unsub = subscribeToMessages(conversation.id, (items) => {
+      // Only log when message count changes significantly
+      if (items && Math.abs(items.length - messages.length) > 0) {
+        console.log('💬 FamilyChat: Loaded', items.length, 'messages for conversation');
+      }
       if (items && items.length > 50) {
         setMessages(items.slice(items.length - 50));
       } else {
@@ -245,6 +295,8 @@ const FamilyChat = () => {
     const other = getOtherParticipant(c, currentUser?.uid);
     const lastTime = toDate(c.lastMessageTime);
     const unreadCount = c.unread?.[currentUser?.uid] || 0;
+    const otherUid = other?.uid || c.participants?.find(p => p !== currentUser?.uid);
+    const presence = presenceData[otherUid] || { status: 'offline' };
 
     return (
       <div
@@ -261,6 +313,8 @@ const FamilyChat = () => {
               alt={other?.name || other?.email}
               className="w-12 h-12 rounded-full"
             />
+            {/* Online status indicator */}
+            <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${getPresenceStatusColor(presence.status)}`}></div>
           </div>
 
           <div className="flex-1 min-w-0">
@@ -281,6 +335,12 @@ const FamilyChat = () => {
               </span>
               <span className="text-xs text-gray-500">
                 {lastTime ? formatDate(lastTime, 'TIME_ONLY') : ''}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between mt-1">
+              <span className={`text-xs ${presence.status === 'online' ? 'text-green-600' : 'text-gray-500'}`}>
+                {formatPresenceStatus(presence)}
               </span>
             </div>
 
