@@ -1,5 +1,5 @@
 import { db } from '../firebaseConfig';
-import { doc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 
 // Presence states
 export const PRESENCE_STATES = {
@@ -10,12 +10,20 @@ export const PRESENCE_STATES = {
 
 // Update user presence
 export const updateUserPresence = async (userId, status = PRESENCE_STATES.ONLINE) => {
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - skipping Firestore operations for updateUserPresence');
+    return { success: true };
+  }
+
   try {
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      'presence.status': status,
-      'presence.lastSeen': serverTimestamp(),
-      'presence.updatedAt': serverTimestamp()
+    const presenceRef = doc(db, 'presence', userId);
+    await setDoc(presenceRef, {
+      status: status,
+      lastSeen: serverTimestamp(),
+      updatedAt: serverTimestamp()
     });
     return { success: true };
   } catch (error) {
@@ -42,27 +50,23 @@ export const setUserOffline = async (userId) => {
 // Subscribe to user presence
 export const subscribeToUserPresence = (userId, callback) => {
   try {
-    const userRef = doc(db, 'users', userId);
-    
-    const unsubscribe = onSnapshot(userRef, (doc) => {
+    const presenceRef = doc(db, 'presence', userId);
+
+    const unsubscribe = onSnapshot(presenceRef, (doc) => {
       if (doc.exists()) {
-        const userData = doc.data();
-        const presence = userData.presence || { 
-          status: PRESENCE_STATES.OFFLINE,
-          lastSeen: null 
-        };
+        const presence = doc.data();
         callback(presence);
       } else {
-        callback({ 
+        callback({
           status: PRESENCE_STATES.OFFLINE,
-          lastSeen: null 
+          lastSeen: null
         });
       }
     }, (error) => {
       console.error('Error subscribing to user presence:', error);
-      callback({ 
+      callback({
         status: PRESENCE_STATES.OFFLINE,
-        lastSeen: null 
+        lastSeen: null
       });
     });
 
@@ -104,13 +108,28 @@ export const subscribeToMultipleUsersPresence = (userIds, callback) => {
 
 // Get batch presence data (one-time fetch)
 export const getBatchPresenceData = async (userIds) => {
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - returning empty presence data');
+    const presenceData = {};
+    userIds.forEach(userId => {
+      presenceData[userId] = {
+        status: PRESENCE_STATES.OFFLINE,
+        lastSeen: null
+      };
+    });
+    return { success: true, presenceData };
+  }
+
   try {
     if (!Array.isArray(userIds) || userIds.length === 0) {
       return { success: true, presenceData: {} };
     }
 
     const presenceData = {};
-    
+
     // Firestore has a limit of 10 documents per 'in' query
     const batches = [];
     for (let i = 0; i < userIds.length; i += 10) {
@@ -118,16 +137,12 @@ export const getBatchPresenceData = async (userIds) => {
     }
 
     for (const batch of batches) {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('__name__', 'in', batch));
+      const presenceRef = collection(db, 'presence');
+      const q = query(presenceRef, where('__name__', 'in', batch));
       const querySnapshot = await getDocs(q);
-      
+
       querySnapshot.forEach((doc) => {
-        const userData = doc.data();
-        const presence = userData.presence || { 
-          status: PRESENCE_STATES.OFFLINE,
-          lastSeen: null 
-        };
+        const presence = doc.data();
         presenceData[doc.id] = presence;
       });
     }
@@ -135,9 +150,9 @@ export const getBatchPresenceData = async (userIds) => {
     // Fill in missing users with offline status
     userIds.forEach(userId => {
       if (!presenceData[userId]) {
-        presenceData[userId] = { 
+        presenceData[userId] = {
           status: PRESENCE_STATES.OFFLINE,
-          lastSeen: null 
+          lastSeen: null
         };
       }
     });

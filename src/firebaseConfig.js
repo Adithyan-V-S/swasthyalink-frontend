@@ -33,7 +33,7 @@ try {
     prompt: 'select_account',
     hd: undefined // Allow any domain
   });
-  
+
   // Add additional scopes if needed
   googleProvider.addScope('email');
   googleProvider.addScope('profile');
@@ -41,17 +41,10 @@ try {
   console.log('✅ Firebase initialized successfully');
   console.log('🔗 Project ID:', firebaseConfig.projectId);
   console.log('🌐 Auth Domain:', firebaseConfig.authDomain);
-  
-  // EMERGENCY QUOTA PROTECTION
-  console.warn('🚨 QUOTA PROTECTION ACTIVE - Firebase operations limited');
-  console.log('⚡ Firebase optimizations enabled: aggressive caching, disabled writes, mock data');
-  console.log('💡 To restore full functionality, upgrade Firebase plan or wait for quota reset');
-  
+
 } catch (error) {
   console.error('❌ Firebase initialization failed:', error);
-  
-  // Fallback configuration
-  console.warn('⚠️ Using fallback configuration');
+  throw new Error(`Firebase initialization failed: ${error.message}`);
 }
 
 export { auth, googleProvider, db, storage };

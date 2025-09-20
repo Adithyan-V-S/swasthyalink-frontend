@@ -5,7 +5,7 @@ import SnakeGame from "./SnakeGame";
 import heroImage from "../assets/images/hero-healthcare.jpg";
 import { useAuth } from "../contexts/AuthContext";
 import { subscribeToNotifications } from "../services/notificationService";
-import { createTestNotifications } from "../utils/testNotifications";
+
 
 const records = [
   {
@@ -534,12 +534,7 @@ const PatientDashboard = () => {
                     <span className="text-sm text-gray-700">Glucose Level</span>
                     <span className="text-sm font-semibold text-gray-900">9.0 mmol/L ↗</span>
                   </button>
-                  <button 
-                    onClick={() => createTestNotifications(currentUser)}
-                    className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded-xl px-3 py-2 text-sm font-medium"
-                  >
-                    🧪 Test Notifications
-                  </button>
+
                 </div>
               </div>
 

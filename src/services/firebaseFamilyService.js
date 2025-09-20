@@ -175,6 +175,17 @@ export const acceptFamilyRequest = async (requestId, currentUserUid) => {
       throw new Error('This request has already been processed');
     }
 
+    // Check if the family network already contains the member to avoid unnecessary writes
+    const senderNetworkRef = doc(familyNetworksCollection, requestData.fromUid);
+    const senderNetworkDoc = await getDoc(senderNetworkRef);
+    const senderMembers = senderNetworkDoc.exists() ? senderNetworkDoc.data().members || [] : [];
+    const senderHasMember = senderMembers.some(member => member.email === (requestData.toEmail));
+
+    const recipientNetworkRef = doc(familyNetworksCollection, requestData.toUid || currentUserUid);
+    const recipientNetworkDoc = await getDoc(recipientNetworkRef);
+    const recipientMembers = recipientNetworkDoc.exists() ? recipientNetworkDoc.data().members || [] : [];
+    const recipientHasMember = recipientMembers.some(member => member.email === (requestData.fromEmail));
+
     // Use batch write to update request and add family network members atomically
     const batch = writeBatch(db);
 
@@ -184,37 +195,39 @@ export const acceptFamilyRequest = async (requestId, currentUserUid) => {
       updatedAt: serverTimestamp()
     });
 
-    // Add to sender's family network
-    const senderNetworkRef = doc(familyNetworksCollection, requestData.fromUid);
-    const senderMemberData = {
-      uid: requestData.toUid || currentUserUid,
-      email: requestData.toEmail,
-      name: requestData.toName,
-      relationship: requestData.relationship,
-      accessLevel: 'limited',
-      isEmergencyContact: false,
-      addedAt: new Date().toISOString()
-    };
-    batch.update(senderNetworkRef, {
-      members: arrayUnion(senderMemberData),
-      updatedAt: serverTimestamp()
-    });
+    // Add to sender's family network only if not already present
+    if (!senderHasMember) {
+      const senderMemberData = {
+        uid: requestData.toUid || currentUserUid,
+        email: requestData.toEmail,
+        name: requestData.toName,
+        relationship: requestData.relationship,
+        accessLevel: 'limited',
+        isEmergencyContact: false,
+        addedAt: new Date().toISOString()
+      };
+      batch.update(senderNetworkRef, {
+        members: arrayUnion(senderMemberData),
+        updatedAt: serverTimestamp()
+      });
+    }
 
-    // Add to recipient's family network
-    const recipientNetworkRef = doc(familyNetworksCollection, requestData.toUid || currentUserUid);
-    const recipientMemberData = {
-      uid: requestData.fromUid,
-      email: requestData.fromEmail,
-      name: requestData.fromName,
-      relationship: getInverseRelationship(requestData.relationship),
-      accessLevel: 'limited',
-      isEmergencyContact: false,
-      addedAt: new Date().toISOString()
-    };
-    batch.update(recipientNetworkRef, {
-      members: arrayUnion(recipientMemberData),
-      updatedAt: serverTimestamp()
-    });
+    // Add to recipient's family network only if not already present
+    if (!recipientHasMember) {
+      const recipientMemberData = {
+        uid: requestData.fromUid,
+        email: requestData.fromEmail,
+        name: requestData.fromName,
+        relationship: getInverseRelationship(requestData.relationship),
+        accessLevel: 'limited',
+        isEmergencyContact: false,
+        addedAt: new Date().toISOString()
+      };
+      batch.update(recipientNetworkRef, {
+        members: arrayUnion(recipientMemberData),
+        updatedAt: serverTimestamp()
+      });
+    }
 
     // Commit batch
     await batch.commit();
@@ -287,40 +300,51 @@ export const rejectFamilyRequest = async (requestId, currentUserUid) => {
  * @returns {Promise<Object>} - Sent and received requests
  */
 export const getFamilyRequests = async (userUid) => {
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - returning empty family requests');
+    return {
+      sent: [],
+      received: []
+    };
+  }
+
   try {
     // Get sent requests
     const sentQuery = query(
       familyRequestsCollection,
       where('fromUid', '==', userUid)
     );
-    
+
     const sentSnapshot = await getDocs(sentQuery);
     const sentRequests = [];
-    
+
     sentSnapshot.forEach(doc => {
       sentRequests.push({
         id: doc.id,
         ...doc.data()
       });
     });
-    
+
     // Get received requests
     const receivedQuery = query(
       familyRequestsCollection,
       where('toUid', '==', userUid),
       where('status', '==', 'pending')
     );
-    
+
     const receivedSnapshot = await getDocs(receivedQuery);
     const receivedRequests = [];
-    
+
     receivedSnapshot.forEach(doc => {
       receivedRequests.push({
         id: doc.id,
         ...doc.data()
       });
     });
-    
+
     return {
       sent: sentRequests,
       received: receivedRequests
@@ -337,6 +361,14 @@ export const getFamilyRequests = async (userUid) => {
  * @returns {Promise<Array>} - Family members
  */
 export const getFamilyNetwork = async (userUid) => {
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - returning empty family network');
+    return [];
+  }
+
   try {
     // Read by UID doc to comply with rules match /familyNetworks/{userId}
     const networkRef = doc(familyNetworksCollection, userUid);

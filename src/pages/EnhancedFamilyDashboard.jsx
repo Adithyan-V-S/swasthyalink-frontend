@@ -7,8 +7,7 @@ import {
   subscribeToConversations,
   NOTIFICATION_TYPES 
 } from '../services/mockNotificationService';
-import { createTestNotifications } from '../utils/testNotifications';
-import { testFirestoreConnection, testFirestoreWrite, checkNotificationsCollection } from '../utils/debugFirestore';
+
 import GeminiChatbot from "../components/GeminiChatbot";
 import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";
 import EnhancedFamilyRequestManager from "../components/EnhancedFamilyRequestManager";
@@ -259,44 +258,7 @@ const EnhancedFamilyDashboard = () => {
     }
   };
 
-  // Test function for notifications
-  const handleTestNotifications = async () => {
-    if (!currentUser) return;
-    
-    console.log('Testing notifications...');
-    const result = await createTestNotifications(currentUser);
-    console.log('Test notification results:', result);
-    
-    if (result.error) {
-      alert('Error creating notifications: ' + result.error);
-    } else {
-      alert('Test notifications created! Check the notification bell.');
-    }
-  };
 
-  // Debug function for Firestore
-  const handleDebugFirestore = async () => {
-    if (!currentUser) return;
-    
-    console.log('🔍 Running Firestore debug tests...');
-    
-    // Test connection
-    const connectionTest = await testFirestoreConnection();
-    console.log('Connection test:', connectionTest);
-    
-    // Test write
-    const writeTest = await testFirestoreWrite();
-    console.log('Write test:', writeTest);
-    
-    // Check notifications
-    const notificationCheck = await checkNotificationsCollection(currentUser.uid);
-    console.log('Notification check:', notificationCheck);
-    
-    alert(`Debug complete! Check console for results.
-Connection: ${connectionTest.success ? '✅' : '❌'}
-Write: ${writeTest.success ? '✅' : '❌'}
-Notifications: ${notificationCheck.success ? notificationCheck.notifications.length + ' found' : '❌'}`);
-  };
 
   const handleStatusClick = (action) => {
     console.log("Status action clicked:", action);
@@ -591,23 +553,7 @@ Notifications: ${notificationCheck.success ? notificationCheck.notifications.len
         </div>
       </div>
 
-      {/* Test Buttons - Remove in production */}
-      <div className="mt-8 flex justify-center gap-4">
-        <button 
-          onClick={handleTestNotifications}
-          className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-xl px-6 py-3 hover:shadow-lg transition-all transform hover:-translate-y-1"
-        >
-          <span className="material-icons mr-2">notification_add</span>
-          Test Notifications
-        </button>
-        <button 
-          onClick={handleDebugFirestore}
-          className="bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-xl px-6 py-3 hover:shadow-lg transition-all transform hover:-translate-y-1"
-        >
-          <span className="material-icons mr-2">bug_report</span>
-          Debug Firestore
-        </button>
-      </div>
+
 
     </div>
   );

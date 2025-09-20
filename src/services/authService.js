@@ -1,5 +1,5 @@
-import { 
-  createUserWithEmailAndPassword, 
+import {
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
@@ -11,13 +11,68 @@ import {
   sendEmailVerification,
   getAuth
 } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../firebaseConfig';
 import { ERROR_MESSAGES } from '../constants';
 
 /**
  * Authentication Service
  * Handles all authentication-related operations
  */
+
+// Helper function to create user document with retry logic
+async function createUserDocument(user, userData = {}) {
+  const maxRetries = 3;
+  let attempt = 0;
+
+  while (attempt < maxRetries) {
+    try {
+      console.log(`🔄 Creating user document (attempt ${attempt + 1}/${maxRetries})`);
+
+      const userDoc = {
+        uid: user.uid,
+        name: userData.displayName || user.displayName || 'Unknown User',
+        email: user.email,
+        role: userData.role || 'patient',
+        createdAt: new Date().toISOString(),
+        lastActive: serverTimestamp(),
+        emailVerified: user.emailVerified,
+        ...userData
+      };
+
+      await setDoc(doc(db, "users", user.uid), userDoc);
+      console.log('✅ User document created successfully');
+      return { success: true };
+    } catch (error) {
+      console.error(`❌ User document creation failed (attempt ${attempt + 1}):`, error);
+      attempt++;
+
+      if (attempt >= maxRetries) {
+        console.error('❌ All attempts to create user document failed');
+        return {
+          success: false,
+          error: `Failed to create user profile: ${error.message}`
+        };
+      }
+
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+    }
+  }
+}
+
+// Helper function to check if user document exists
+async function userDocumentExists(userId) {
+  try {
+    const userDocRef = doc(db, "users", userId);
+    const userDocSnap = await getDoc(userDocRef);
+    return userDocSnap.exists();
+  } catch (error) {
+    console.error('Error checking user document existence:', error);
+    return false;
+  }
+}
+
 class AuthService {
   /**
    * Register a new user
@@ -28,37 +83,50 @@ class AuthService {
    */
   async register(email, password, userData = {}) {
     try {
+      console.log('🚀 Starting user registration process');
+
       // Create user with email and password
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
+
+      console.log('✅ User account created successfully:', user.uid);
+
       // Update profile with additional data
       if (userData.displayName) {
         await updateProfile(user, {
           displayName: userData.displayName,
           photoURL: userData.photoURL || null
         });
+        console.log('✅ User profile updated');
       }
-      
+
       // Send email verification
       await sendEmailVerification(user);
-      
+      console.log('✅ Email verification sent');
+
+      // Create user document in Firestore with retry logic
+      const userDocResult = await createUserDocument(user, userData);
+      if (!userDocResult.success) {
+        console.warn('⚠️ User document creation failed, but registration succeeded:', userDocResult.error);
+        // Don't fail the entire registration if user document creation fails
+      }
+
       return {
         success: true,
         user: {
           uid: user.uid,
           email: user.email,
-          displayName: userData.displayName || null,
+          displayName: userData.displayName || user.displayName || null,
           photoURL: userData.photoURL || null,
           emailVerified: user.emailVerified
         }
       };
     } catch (error) {
-      console.error('Registration error:', error);
-      
+      console.error('❌ Registration error:', error);
+
       // Handle specific error codes
       let errorMessage = ERROR_MESSAGES.GENERIC_ERROR;
-      
+
       switch (error.code) {
         case 'auth/email-already-in-use':
           errorMessage = 'This email is already registered. Please use a different email or try logging in.';
@@ -69,10 +137,16 @@ class AuthService {
         case 'auth/weak-password':
           errorMessage = 'Password is too weak. Please use a stronger password.';
           break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Email/password registration is not enabled. Please contact support.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many registration attempts. Please try again later.';
+          break;
         default:
           errorMessage = error.message || ERROR_MESSAGES.GENERIC_ERROR;
       }
-      
+
       return {
         success: false,
         error: errorMessage
@@ -88,9 +162,25 @@ class AuthService {
    */
   async login(email, password) {
     try {
+      console.log('🚀 Starting user login process');
+
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
+
+      console.log('✅ User login successful:', user.uid);
+
+      // Check if user document exists, create if it doesn't
+      const userExists = await userDocumentExists(user.uid);
+      if (!userExists) {
+        console.log('➕ User document not found, creating new one');
+        const userDocResult = await createUserDocument(user);
+        if (!userDocResult.success) {
+          console.warn('⚠️ User document creation failed during login:', userDocResult.error);
+        }
+      } else {
+        console.log('✅ User document already exists');
+      }
+
       return {
         success: true,
         user: {
@@ -102,11 +192,11 @@ class AuthService {
         }
       };
     } catch (error) {
-      console.error('Login error:', error);
-      
+      console.error('❌ Login error:', error);
+
       // Handle specific error codes
       let errorMessage = ERROR_MESSAGES.AUTHENTICATION_FAILED;
-      
+
       switch (error.code) {
         case 'auth/user-not-found':
         case 'auth/wrong-password':
@@ -121,10 +211,13 @@ class AuthService {
         case 'auth/too-many-requests':
           errorMessage = 'Too many failed login attempts. Please try again later or reset your password.';
           break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Network error. Please check your connection and try again.';
+          break;
         default:
           errorMessage = error.message || ERROR_MESSAGES.AUTHENTICATION_FAILED;
       }
-      
+
       return {
         success: false,
         error: errorMessage

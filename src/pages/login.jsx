@@ -117,9 +117,9 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    
+
     console.log("Login attempt with:", { email, password });
-    
+
     // Preset admin login check
     if (email === "admin@gmail.com" && password === "admin123") {
       console.log("Preset admin credentials detected, redirecting to admin dashboard");
@@ -134,9 +134,67 @@ const Login = () => {
       }
       return;
     }
-    
-    console.log("Not preset admin, proceeding with Firebase Auth");
-    
+
+    // Preset doctor login check (temporary for testing)
+    if (email === "doctor@gmail.com" && password === "doctor123") {
+      console.log("Preset doctor credentials detected, redirecting to doctor dashboard");
+      setLoading(false);
+      // Simulate doctor user
+      const mockDoctor = {
+        uid: "mock-doctor-uid",
+        email: "doctor@gmail.com",
+        displayName: "Dr. Test Doctor",
+        emailVerified: true
+      };
+      localStorage.setItem('testUser', JSON.stringify(mockDoctor));
+      localStorage.setItem('testUserRole', 'doctor');
+
+      // Force trigger storage event for same-tab detection
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'testUser',
+        newValue: JSON.stringify(mockDoctor)
+      }));
+
+      try {
+        navigate("/doctordashboard");
+        console.log("Navigation to doctor dashboard completed");
+      } catch (error) {
+        console.error("Navigation error:", error);
+      }
+      return;
+    }
+
+    // Preset patient login check (temporary for testing)
+    if (email === "patient@gmail.com" && password === "patient123") {
+      console.log("Preset patient credentials detected, redirecting to patient dashboard");
+      setLoading(false);
+      // Simulate patient user
+      const mockPatient = {
+        uid: "mock-patient-uid",
+        email: "patient@gmail.com",
+        displayName: "Test Patient",
+        emailVerified: true
+      };
+      localStorage.setItem('testUser', JSON.stringify(mockPatient));
+      localStorage.setItem('testUserRole', 'patient');
+
+      // Force trigger storage event for same-tab detection
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'testUser',
+        newValue: JSON.stringify(mockPatient)
+      }));
+
+      try {
+        navigate("/patientdashboard");
+        console.log("Navigation to patient dashboard completed");
+      } catch (error) {
+        console.error("Navigation error:", error);
+      }
+      return;
+    }
+
+    console.log("Not preset credentials, proceeding with Firebase Auth");
+
     try {
       const response = await authService.login(email, password);
       if (response.success) {
@@ -151,8 +209,15 @@ const Login = () => {
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-          // Always navigate to patient dashboard since we're focusing only on patient role
-          navigate("/patientdashboard");
+          const userData = userDocSnap.data();
+          // Navigate based on user role
+          if (userData.role === 'doctor') {
+            navigate("/doctordashboard");
+          } else if (userData.role === 'admin') {
+            navigate("/admindashboard");
+          } else {
+            navigate("/patientdashboard");
+          }
         } else {
           setError("User data not found. Please contact support.");
         }

@@ -17,7 +17,17 @@ const Header = () => {
   let sidebarTimer = null;
 
   useEffect(() => {
+    // Check if this is a test user (mock authentication)
+    const isTestUser = localStorage.getItem('testUser') !== null;
+
     if (!isAuthenticated || !currentUser) {
+      setNotifications([]);
+      return;
+    }
+
+    // For test users, don't try to access Firestore
+    if (isTestUser) {
+      console.log('🧪 Using test user - skipping Firestore notifications');
       setNotifications([]);
       return;
     }
@@ -44,6 +54,9 @@ const Header = () => {
         });
       });
       setNotifications(notifs);
+    }, (error) => {
+      console.error('❌ Error fetching notifications:', error);
+      setNotifications([]);
     });
 
     return () => unsubscribe();

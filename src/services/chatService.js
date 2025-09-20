@@ -34,6 +34,15 @@ export const getOrCreateConversation = async ({
 }) => {
   if (!currentUid || !otherUid) throw new Error('Both user IDs are required');
 
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - skipping Firestore operations for getOrCreateConversation');
+    const convoId = conversationIdFor(currentUid, otherUid);
+    return { id: convoId, ref: null };
+  }
+
   const convoId = conversationIdFor(currentUid, otherUid);
   const convoRef = doc(db, CHATS_COLLECTION, convoId);
   const snap = await getDoc(convoRef);
@@ -65,6 +74,16 @@ export const getOrCreateConversation = async ({
 // Realtime list of conversations for a user
 export const subscribeToConversations = (currentUid, callback) => {
   if (!currentUid) throw new Error('currentUid is required');
+
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - returning empty conversations for subscribeToConversations');
+    callback([]);
+    return () => {}; // Return empty unsubscribe function
+  }
+
   // Avoid orderBy here to prevent composite index requirement and SDK assertion issues
   const q = query(
     collection(db, CHATS_COLLECTION),
@@ -91,6 +110,15 @@ export const subscribeToConversations = (currentUid, callback) => {
 
 // Realtime messages in a conversation
 export const subscribeToMessages = (conversationId, callback) => {
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - returning empty messages for subscribeToMessages');
+    callback([]);
+    return () => {}; // Return empty unsubscribe function
+  }
+
   const msgsRef = collection(db, CHATS_COLLECTION, conversationId, 'messages');
   const q = query(msgsRef, orderBy('timestamp', 'asc'));
   return onSnapshot(q, (snapshot) => {
@@ -104,6 +132,14 @@ export const sendMessage = async ({ conversationId, senderId, text }) => {
   if (!conversationId || !senderId) throw new Error('conversationId and senderId are required');
   if (!text || !text.trim()) return;
   const trimmed = text.trim();
+
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - skipping Firestore operations for sendMessage');
+    return; // Just return without doing anything for test users
+  }
 
   // Load conversation
   const convoRef = doc(db, CHATS_COLLECTION, conversationId);

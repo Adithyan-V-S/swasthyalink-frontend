@@ -92,6 +92,16 @@ const setToLocalStorage = (key, data) => {
 export const subscribeToNotifications = (userId, callback) => {
   if (!userId) return null;
 
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - returning empty notifications');
+    // Return empty notifications for test users
+    callback([]);
+    return () => {}; // Return empty unsubscribe function
+  }
+
   const q = query(
     collection(db, 'notifications'),
     where('recipientId', '==', userId),
@@ -111,6 +121,14 @@ export const subscribeToNotifications = (userId, callback) => {
 
 // Mark notification as read
 export const markNotificationAsRead = async (notificationId) => {
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - skipping Firestore operations for markNotificationAsRead');
+    return { success: true };
+  }
+
   try {
     await updateDoc(doc(db, 'notifications', notificationId), {
       read: true,
@@ -125,6 +143,14 @@ export const markNotificationAsRead = async (notificationId) => {
 
 // Mark all notifications as read for a user
 export const markAllNotificationsAsRead = async (userId) => {
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - skipping Firestore operations for markAllNotificationsAsRead');
+    return { success: true };
+  }
+
   try {
     const q = query(
       collection(db, 'notifications'),
@@ -152,6 +178,14 @@ export const markAllNotificationsAsRead = async (userId) => {
 
 // Delete notification
 export const deleteNotification = async (notificationId) => {
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - skipping Firestore operations for deleteNotification');
+    return { success: true };
+  }
+
   try {
     await updateDoc(doc(db, 'notifications', notificationId), {
       deleted: true,
@@ -166,6 +200,14 @@ export const deleteNotification = async (notificationId) => {
 
 // Get unread notification count
 export const getUnreadNotificationCount = async (userId) => {
+  // Check if this is a test user (mock authentication)
+  const isTestUser = localStorage.getItem('testUser') !== null;
+
+  if (isTestUser) {
+    console.log('🧪 Using test user - returning 0 unread notifications');
+    return { success: true, count: 0 };
+  }
+
   try {
     const q = query(
       collection(db, 'notifications'),

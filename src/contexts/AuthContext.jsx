@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { initializePresenceTracking, cleanupPresenceTracking } from '../services/presenceService';
 
 const AuthContext = createContext();
 
@@ -24,76 +23,121 @@ export const AuthProvider = ({ children }) => {
     const presetAdmin = localStorage.getItem('presetAdmin') === 'true';
     setIsPresetAdmin(presetAdmin);
 
-    // Check for test user
-    const testUser = localStorage.getItem('testUser');
-    const testUserRole = localStorage.getItem('testUserRole');
-    
-    if (testUser && testUserRole) {
-      console.log('🧪 Using test user from localStorage');
-      const mockUser = JSON.parse(testUser);
-      console.log('🧪 Test user data:', mockUser);
-      console.log('🧪 Test user role:', testUserRole);
-      setCurrentUser(mockUser);
-      setUserRole(testUserRole);
-      setLoading(false);
+    // Function to check and set test user
+    const checkTestUser = () => {
+      const testUser = localStorage.getItem('testUser');
+      const testUserRole = localStorage.getItem('testUserRole');
+
+      if (testUser && testUserRole) {
+        console.log('🧪 Using test user from localStorage');
+        const mockUser = JSON.parse(testUser);
+        console.log('🧪 Test user data:', mockUser);
+        console.log('🧪 Test user role:', testUserRole);
+        setCurrentUser(mockUser);
+        setUserRole(testUserRole);
+        setLoading(false);
+        return true;
+      }
+      return false;
+    };
+
+    // Check for test user first
+    if (checkTestUser()) {
       return;
     }
 
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         setCurrentUser(user);
-        
-        // Fetch user role from Firestore
+
+        // Check if this is a test user (mock authentication)
+        const isTestUser = localStorage.getItem('testUser') !== null;
+
+        if (isTestUser) {
+          console.log('🧪 Using test user - skipping Firestore operations in AuthContext');
+          setUserRole('patient'); // Default role for test users
+          setLoading(false);
+          return;
+        }
+
+        // Fetch user role from Firestore with retry logic
         try {
           console.log("AuthContext: Fetching user role for UID:", user.uid);
-          const userDocRef = doc(db, "users", user.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            console.log("AuthContext: User data found:", userData);
+
+          // Retry mechanism for Firestore operations
+          const maxRetries = 3;
+          let attempt = 0;
+          let userData = null;
+
+          while (attempt < maxRetries) {
+            try {
+              const userDocRef = doc(db, "users", user.uid);
+              const userDocSnap = await getDoc(userDocRef);
+
+              if (userDocSnap.exists()) {
+                userData = userDocSnap.data();
+                console.log("AuthContext: User data found:", userData);
+                break;
+              } else {
+                console.log(`AuthContext: No user document found (attempt ${attempt + 1}/${maxRetries})`);
+                throw new Error('User document not found');
+              }
+            } catch (fetchError) {
+              console.error(`AuthContext: Error fetching user data (attempt ${attempt + 1}):`, fetchError);
+              attempt++;
+
+              if (attempt >= maxRetries) {
+                throw fetchError;
+              }
+
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+            }
+          }
+
+          if (userData) {
             setUserRole(userData.role);
             console.log("AuthContext: User role set to:", userData.role);
 
-            // Update lastActive for presence
+            // Update lastActive for presence with retry
             try {
+              const userDocRef = doc(db, "users", user.uid);
               await updateDoc(userDocRef, { lastActive: serverTimestamp() });
-            } catch {}
+              console.log("AuthContext: Last active updated");
+            } catch (updateError) {
+              console.warn("AuthContext: Failed to update lastActive:", updateError);
+            }
+          }
+        } catch (error) {
+          console.error("AuthContext: Error fetching user role after all retries:", error);
 
-            // Initialize presence tracking
-            initializePresenceTracking(user.uid);
-          } else {
-            console.log("AuthContext: No user document found in Firestore");
-            // If no user document exists, create one with patient role
+          // If user document doesn't exist, try to create it
+          if (error.message === 'User document not found') {
             try {
               console.log("AuthContext: Creating new user document with patient role");
+              const userDocRef = doc(db, "users", user.uid);
               const userData = {
                 uid: user.uid,
-                name: user.displayName,
+                name: user.displayName || 'Unknown User',
                 email: user.email,
                 role: "patient",
                 createdAt: new Date().toISOString(),
-                lastActive: serverTimestamp()
+                lastActive: serverTimestamp(),
+                emailVerified: user.emailVerified
               };
-              
-              await setDoc(doc(db, "users", user.uid), userData);
+
+              await setDoc(userDocRef, userData);
               console.log("AuthContext: New user document created successfully");
               setUserRole("patient");
-              
-              // Initialize presence tracking for new user
-              initializePresenceTracking(user.uid);
             } catch (createError) {
               console.error("AuthContext: Error creating user document:", createError);
               setUserRole(null);
             }
+          } else {
+            setUserRole(null);
           }
-        } catch (error) {
-          console.error("AuthContext: Error fetching user role:", error);
-          setUserRole(null);
         }
       } else {
-        // Cleanup presence tracking on logout
-        cleanupPresenceTracking();
         setCurrentUser(null);
         setUserRole(null);
       }
@@ -101,6 +145,27 @@ export const AuthProvider = ({ children }) => {
     });
 
     return unsubscribe;
+  }, []);
+
+  // Listen for localStorage changes to handle test user login
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'testUser' || e.key === 'testUserRole') {
+        console.log('🧪 localStorage changed, checking for test user...');
+        const testUser = localStorage.getItem('testUser');
+        const testUserRole = localStorage.getItem('testUserRole');
+
+        if (testUser && testUserRole) {
+          console.log('🧪 Test user detected from localStorage change');
+          const mockUser = JSON.parse(testUser);
+          setCurrentUser(mockUser);
+          setUserRole(testUserRole);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const isAuthenticated = () => {

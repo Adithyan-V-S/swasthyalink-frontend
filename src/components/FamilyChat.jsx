@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDate } from '../utils/helpers';
-import { 
-  subscribeToMultipleUsersPresence, 
-  getPresenceStatusColor, 
-  formatPresenceStatus,
-  initializePresenceTracking 
-} from '../services/presenceService';
+// Presence service functions - temporarily disabled for test users
+const subscribeToMultipleUsersPresence = () => () => {};
+const getPresenceStatusColor = (status) => status === 'online' ? 'bg-green-500' : 'bg-gray-400';
+const formatPresenceStatus = (presence) => presence?.status || 'offline';
+const initializePresenceTracking = () => () => {};
 // Temporarily use mock services while fixing Firebase
 import {
   subscribeToConversations,
