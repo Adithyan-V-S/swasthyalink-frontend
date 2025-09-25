@@ -23,6 +23,7 @@ const Sidebar = ({ open, onClose }) => {
       ],
       patient: [
         { to: "/patientdashboard", label: "Patient Dashboard" },
+        { to: "/healthanalytics", label: "Health Analytics" },
         { to: "/familydashboard", label: "Family Access" },
         { to: "/settings", label: "Settings" },
       ],

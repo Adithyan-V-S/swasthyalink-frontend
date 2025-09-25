@@ -6,6 +6,8 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import authService from "../services/authService";
 import { ERROR_MESSAGES } from "../constants";
 import { useAuth } from "../contexts/AuthContext";
+import DebugCredentials from "../components/DebugCredentials";
+import { testCredentialGeneration, validateCredentials, fixStoredDoctors } from "../utils/credentialTest";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -18,6 +20,7 @@ const Login = () => {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0); // To trigger re-render when localStorage changes
   const navigate = useNavigate();
   const location = useLocation();
   const { setPresetAdmin } = useAuth();
@@ -26,7 +29,28 @@ const Login = () => {
     if (location.state?.message) {
       setMessage(location.state.message);
     }
+
+    // Run credential tests on page load
+    console.log("🧪 Running credential tests...");
+    testCredentialGeneration();
   }, [location]);
+
+  // Listen for localStorage changes to update the credentials display
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setRefreshKey(prev => prev + 1);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Also listen for custom events (for same-tab updates)
+    window.addEventListener('mockDoctorsUpdated', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('mockDoctorsUpdated', handleStorageChange);
+    };
+  }, []);
 
   // Note: Using popup method now, so no need for redirect result handling
 
@@ -135,6 +159,79 @@ const Login = () => {
       return;
     }
 
+    // Additional test credentials for demo purposes
+    const testCredentials = [
+      { email: "test@swasthyalink.com", password: "test123", role: "patient", redirect: "/dashboard" },
+      { email: "doctor@swasthyalink.com", password: "doctor123", role: "doctor", redirect: "/doctordashboard" },
+      { email: "family@swasthyalink.com", password: "family123", role: "family", redirect: "/familydashboard" }
+    ];
+
+    const testUser = testCredentials.find(cred => cred.email === email && cred.password === password);
+    if (testUser) {
+      console.log(`Test ${testUser.role} credentials detected, redirecting to ${testUser.redirect}`);
+      setLoading(false);
+      try {
+        navigate(testUser.redirect);
+        console.log(`Navigation to ${testUser.redirect} completed`);
+      } catch (error) {
+        console.error("Navigation error:", error);
+      }
+      return;
+    }
+
+    // Check for doctors created through admin dashboard
+    const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+    console.log("🔍 Available mock doctors:", mockDoctors);
+    console.log("🔍 Looking for:", { email: email.toLowerCase(), password });
+
+    // Debug: Show all doctor emails and passwords for troubleshooting
+    mockDoctors.forEach((doc, index) => {
+      console.log(`🩺 Doctor ${index + 1}:`, {
+        email: doc.email,
+        password: doc.password,
+        name: doc.name,
+        specialization: doc.specialization
+      });
+    });
+
+    const doctorMatch = mockDoctors.find(doc =>
+      doc.email === email.toLowerCase() && doc.password === password
+    );
+    console.log("🔍 Doctor match result:", doctorMatch);
+
+    if (doctorMatch) {
+      console.log("Doctor credentials found in admin-created doctors, redirecting to doctor dashboard");
+      setLoading(false);
+
+      // Create doctor user object
+      const doctorUser = {
+        uid: doctorMatch.uid || doctorMatch.id,
+        email: doctorMatch.email,
+        displayName: doctorMatch.name,
+        emailVerified: true,
+        specialization: doctorMatch.specialization,
+        license: doctorMatch.license,
+        phone: doctorMatch.phone
+      };
+
+      localStorage.setItem('testUser', JSON.stringify(doctorUser));
+      localStorage.setItem('testUserRole', 'doctor');
+
+      // Force trigger storage event for same-tab detection
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'testUser',
+        newValue: JSON.stringify(doctorUser)
+      }));
+
+      try {
+        navigate("/doctordashboard");
+        console.log("Navigation to doctor dashboard completed");
+      } catch (error) {
+        console.error("Navigation error:", error);
+      }
+      return;
+    }
+
     // Preset doctor login check (temporary for testing)
     if (email === "doctor@gmail.com" && password === "doctor123") {
       console.log("Preset doctor credentials detected, redirecting to doctor dashboard");
@@ -225,7 +322,14 @@ const Login = () => {
         setError(response.error || ERROR_MESSAGES.AUTHENTICATION_FAILED);
       }
     } catch (err) {
-      setError(ERROR_MESSAGES.AUTHENTICATION_FAILED);
+      console.error("Login error:", err);
+
+      // Provide helpful error message for invalid credentials
+      if (err.message && err.message.includes('auth/invalid-credential')) {
+        setError("Invalid email or password. Please try the test credentials below or contact support.");
+      } else {
+        setError(err.message || ERROR_MESSAGES.AUTHENTICATION_FAILED);
+      }
     } finally {
       setLoading(false);
     }
@@ -327,6 +431,9 @@ const Login = () => {
 
             {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
 
+            {/* Debug Credentials Component */}
+            {!showForgotPassword && <DebugCredentials />}
+
             {showForgotPassword ? (
               // Forgot Password Form
               <form className="w-full flex flex-col gap-4" onSubmit={handleForgotPassword}>
@@ -377,6 +484,19 @@ const Login = () => {
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                   />
+                  {/* Show password hint for current email */}
+                  {(() => {
+                    const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+                    const currentDoctor = mockDoctors.find(doc => doc.email === email.toLowerCase());
+                    if (currentDoctor && email) {
+                      return (
+                        <div className="text-xs text-green-600 mt-1 bg-green-50 p-2 rounded">
+                          💡 Password hint: {currentDoctor.password}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
@@ -435,6 +555,77 @@ const Login = () => {
                 {loading ? "Resending..." : "Resend Verification Email"}
               </button>
             )}
+
+            {/* Test Credentials Section */}
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="text-sm font-semibold text-blue-800">🧪 Test Credentials (Demo)</h4>
+                <button
+                  onClick={() => setRefreshKey(prev => prev + 1)}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                  title="Refresh credentials list"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+              <div className="space-y-2 text-xs text-blue-700">
+                <div className="flex justify-between">
+                  <span className="font-medium">Admin:</span>
+                  <span>admin@gmail.com / admin123</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Patient:</span>
+                  <span>test@swasthyalink.com / test123</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Doctor:</span>
+                  <span>doctor@swasthyalink.com / doctor123</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Family:</span>
+                  <span>family@swasthyalink.com / family123</span>
+                </div>
+
+                {/* Show admin-created doctors if any exist */}
+                {(() => {
+                  const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+                  if (mockDoctors.length > 0) {
+                    return (
+                      <div className="mt-3 pt-3 border-t border-blue-200">
+                        <div className="text-blue-800 font-medium mb-2">📋 Admin-Created Doctors:</div>
+                        {mockDoctors.slice(0, 3).map((doctor, index) => (
+                          <div key={`${doctor.id}-${refreshKey}`} className="flex flex-col space-y-1 mb-2">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium text-blue-900">{doctor.name}</span>
+                              <span className="text-xs text-blue-600">{doctor.specialization}</span>
+                            </div>
+                            <div className="text-xs text-blue-700 bg-blue-100 p-1 rounded flex justify-between items-center">
+                              <span>{doctor.email} / {doctor.password}</span>
+                              <button
+                                onClick={() => {
+                                  setEmail(doctor.email);
+                                  setPassword(doctor.password);
+                                }}
+                                className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+                                title="Auto-fill credentials"
+                              >
+                                Use
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        {mockDoctors.length > 3 && (
+                          <div className="text-blue-600 text-center mt-2 text-xs">
+                            +{mockDoctors.length - 3} more doctors available
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            </div>
 
             {!showForgotPassword && (
               <div className="mt-6 text-sm text-gray-600">

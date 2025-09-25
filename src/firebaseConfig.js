@@ -1,15 +1,15 @@
 // frontend/src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// Firebase configuration for swasthyakink
+// Firebase configuration for swasthyalink (corrected project name)
 const firebaseConfig = {
   apiKey: "AIzaSyCwoqFsGf3KNbKKeAht16HnGgdclsub0A0",
-  authDomain: "swasthyakink.firebaseapp.com",
-  projectId: "swasthyakink",
-  storageBucket: "swasthyakink.firebasestorage.app",
+  authDomain: "swasthyalink.firebaseapp.com",
+  projectId: "swasthyalink",
+  storageBucket: "swasthyalink.firebasestorage.app",
   messagingSenderId: "613048256435",
   appId: "1:613048256435:web:f7b9f390ff21154b9fedc6",
   measurementId: "G-D0QZ3NL9J1"

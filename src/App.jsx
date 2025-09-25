@@ -28,11 +28,12 @@ import Settings from './pages/settings';
 import Login from './pages/login';
 import Register from './pages/register';
 import Profile from './pages/profile';
+import HealthAnalytics from './pages/HealthAnalytics';
 
 function AppContent() {
   const location = useLocation();
   const hideHeaderFooterOn = ['/login', '/register', '/admindashboard'];
-  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/doctordashboard', '/familydashboard', '/settings'];
+  const showHeaderOn = ['/', '/about', '/profile', '/patientdashboard', '/doctordashboard', '/familydashboard', '/settings', '/healthanalytics'];
 
   return (
     <ErrorBoundary>
@@ -43,6 +44,7 @@ function AppContent() {
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+        <Route path="/healthanalytics" element={<PrivateRoute><HealthAnalytics /></PrivateRoute>} />
         
         {/* Authentication Routes - Redirect if already logged in */}
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
@@ -63,6 +65,7 @@ function AppContent() {
     </ErrorBoundary>
   );
 }
+
 
 function App() {
   const [loading, setLoading] = useState(true);

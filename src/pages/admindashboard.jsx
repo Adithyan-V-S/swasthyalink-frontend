@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebaseConfig";
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, setDoc } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
+import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -19,87 +20,285 @@ const AdminDashboard = () => {
     license: "",
     phone: ""
   });
+  const [editingItem, setEditingItem] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [presetAdmin, setPresetAdmin] = useState(localStorage.getItem('presetAdmin') === 'true');
+  const [storageMode, setStorageMode] = useState('checking'); // 'firestore', 'localStorage', 'checking'
+  const [patients, setPatients] = useState([]);
+  const [analytics, setAnalytics] = useState({
+    totalPatients: 0,
+    totalDoctors: 0,
+    totalRevenue: 0,
+    appointments: 0,
+    growthRate: 0,
+    patientGrowth: 0,
+    revenueGrowth: 0
+  });
   const navigate = useNavigate();
   const { logout, setPresetAdmin: setAuthPresetAdmin } = useAuth();
 
-  // Mock data for analytics
-  const analyticsData = {
-    totalPatients: 1247,
-    totalDoctors: doctors.length,
-    totalRevenue: 45678,
-    appointments: 89,
-    growthRate: 12.5,
-    patientGrowth: 8.2,
-    revenueGrowth: 15.3
+  // Calculate analytics based on real data
+  const calculateAnalytics = () => {
+    const totalDoctors = doctors.length;
+    const totalPatients = patients.length;
+
+    // Generate some realistic analytics based on actual data
+    const totalRevenue = totalPatients * 150 + totalDoctors * 500; // Estimated revenue
+    const appointments = Math.floor(totalPatients * 0.3); // 30% of patients have appointments today
+
+    // Calculate growth rates (mock data for now, but could be real if you track historical data)
+    const patientGrowth = totalPatients > 0 ? Math.floor(Math.random() * 15) + 5 : 0;
+    const revenueGrowth = totalRevenue > 0 ? Math.floor(Math.random() * 20) + 8 : 0;
+
+    setAnalytics({
+      totalPatients,
+      totalDoctors,
+      totalRevenue,
+      appointments,
+      growthRate: 12.5,
+      patientGrowth,
+      revenueGrowth
+    });
+  };
+
+  // Initialize sample patient data if not exists
+  const initializeSampleData = () => {
+    if (!localStorage.getItem('mockPatients')) {
+      const samplePatients = [
+        {
+          id: 'PAT_001',
+          uid: 'PAT_001',
+          name: 'John Doe',
+          email: 'john.doe@example.com',
+          phone: '9876543210',
+          age: 35,
+          role: 'patient',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'PAT_002',
+          uid: 'PAT_002',
+          name: 'Jane Smith',
+          email: 'jane.smith@example.com',
+          phone: '9876543211',
+          age: 28,
+          role: 'patient',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'PAT_003',
+          uid: 'PAT_003',
+          name: 'Robert Johnson',
+          email: 'robert.johnson@example.com',
+          phone: '9876543212',
+          age: 42,
+          role: 'patient',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'PAT_004',
+          uid: 'PAT_004',
+          name: 'Emily Davis',
+          email: 'emily.davis@example.com',
+          phone: '9876543213',
+          age: 31,
+          role: 'patient',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'PAT_005',
+          uid: 'PAT_005',
+          name: 'Michael Wilson',
+          email: 'michael.wilson@example.com',
+          phone: '9876543214',
+          age: 39,
+          role: 'patient',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        }
+      ];
+      localStorage.setItem('mockPatients', JSON.stringify(samplePatients));
+      console.log('Sample patient data initialized');
+    }
   };
 
   useEffect(() => {
-    console.log("useEffect auth state check, presetAdmin:", presetAdmin);
-    // Check for preset admin first
+    // Calculate analytics whenever doctors or patients data changes
+    calculateAnalytics();
+  }, [doctors, patients]);
+
+  useEffect(() => {
+    const presetAdmin = localStorage.getItem('presetAdmin') === 'true';
+    
     if (presetAdmin) {
-      console.log("Preset admin detected, setting current user and fetching data");
-      setCurrentUser({ email: 'admin@gmail.com', displayName: 'Admin User' });
-      fetchData();
+      console.log("Preset admin detected, setting up admin session");
+
+      // Initialize sample data if not exists
+      initializeSampleData();
+
+      if (!localStorage.getItem('mockDoctors')) {
+        const sampleDoctors = [
+          {
+            id: 'DOC_SAMPLE_001',
+            uid: 'DOC_SAMPLE_001',
+            name: 'Dr. Sarah Johnson',
+            email: 'sarah.johnson@swasthyalink.com',
+            password: 'Doc123456!',
+            specialization: 'Cardiology',
+            license: 'MD12345',
+            phone: '9876543210',
+            role: 'doctor',
+            status: 'active',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          },
+          {
+            id: 'DOC_SAMPLE_002',
+            uid: 'DOC_SAMPLE_002',
+            name: 'Dr. Michael Chen',
+            email: 'michael.chen@swasthyalink.com',
+            password: 'Doc789012!',
+            specialization: 'Pediatrics',
+            license: 'MD67890',
+            phone: '9876543211',
+            role: 'doctor',
+            status: 'active',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ];
+        localStorage.setItem('mockDoctors', JSON.stringify(sampleDoctors));
+        localStorage.setItem('mockStaff', JSON.stringify([]));
+        localStorage.setItem('mockPharmacy', JSON.stringify([]));
+        console.log('Sample data initialized for preset admin');
+      }
+
+      // Sign in anonymously for preset admin
+      signInAnonymously(auth)
+        .then((userCredential) => {
+          console.log("Anonymous sign-in successful:", userCredential.user.uid);
+          setCurrentUser({
+            uid: userCredential.user.uid,
+            email: "admin@gmail.com",
+            isAnonymous: true
+          });
+          setLoading(false);
+          fetchData();
+        })
+        .catch((error) => {
+          console.error("Anonymous sign-in failed:", error);
+          setLoading(false);
+        });
       return;
     }
-    
-    // Only check Firebase Auth if not preset admin
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      console.log("onAuthStateChanged triggered, user:", user);
+
+    // Regular Firebase auth check
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Check if user is admin
         const userDoc = await getDocs(collection(db, "users"));
         const userData = userDoc.docs.find(doc => doc.data().uid === user.uid);
         if (userData && userData.data().role === "admin") {
-          console.log("User is admin, setting current user and fetching data");
           setCurrentUser(user);
           fetchData();
         } else {
-          console.log("User is not admin");
-          // Not admin, do not navigate here to prevent repeated redirects
           setLoading(false);
         }
       } else {
-        console.log("No user detected");
         setLoading(false);
-        // Do not navigate here to prevent repeated redirects
       }
     });
 
     return () => unsubscribe();
-  }, [presetAdmin]);
+  }, []);
 
   const fetchData = async () => {
-    // For preset admin, skip Firestore fetching initially
-    const isPresetAdmin = localStorage.getItem('presetAdmin') === 'true';
-    if (isPresetAdmin) {
-      setLoading(false);
-      return;
-    }
-    
     try {
       setLoading(true);
-      
-      // Fetch doctors
-      const doctorsSnapshot = await getDocs(collection(db, "users"));
-      const doctorsData = doctorsSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(user => user.role === "doctor");
-      setDoctors(doctorsData);
 
-      // Fetch staff (you can create a separate collection for staff)
-      const staffSnapshot = await getDocs(collection(db, "staff"));
-      const staffData = staffSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setStaff(staffData);
+      const isPresetAdmin = localStorage.getItem('presetAdmin') === 'true';
 
-      // Fetch pharmacy items
-      const pharmacySnapshot = await getDocs(collection(db, "pharmacy"));
-      const pharmacyData = pharmacySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setPharmacy(pharmacyData);
+      if (auth.currentUser) {
+        // Fetch from Firestore if authenticated
+        console.log("Fetching data from Firestore...");
+
+        // Fetch doctors
+        const doctorsSnapshot = await getDocs(collection(db, "users"));
+        const doctorsData = doctorsSnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(user => user.role === "doctor");
+
+        console.log("Fetched doctors from Firestore:", doctorsData);
+        setDoctors(doctorsData);
+
+        // Fetch patients
+        const patientsSnapshot = await getDocs(collection(db, "users"));
+        const patientsData = patientsSnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(user => user.role === "patient");
+
+        console.log("Fetched patients from Firestore:", patientsData);
+        setPatients(patientsData);
+
+        // Fetch staff
+        const staffSnapshot = await getDocs(collection(db, "staff"));
+        const staffData = staffSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setStaff(staffData);
+
+        // Fetch pharmacy items
+        const pharmacySnapshot = await getDocs(collection(db, "pharmacy"));
+        const pharmacyData = pharmacySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setPharmacy(pharmacyData);
+
+        setStorageMode('firestore');
+
+      } else if (isPresetAdmin) {
+        // Load from localStorage for preset admin
+        console.log("Loading data from local storage (preset admin)...");
+
+        const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+        const mockStaff = JSON.parse(localStorage.getItem('mockStaff') || '[]');
+        const mockPharmacy = JSON.parse(localStorage.getItem('mockPharmacy') || '[]');
+        const mockPatients = JSON.parse(localStorage.getItem('mockPatients') || '[]');
+
+        console.log("Loaded mock doctors:", mockDoctors);
+        console.log("Loaded mock patients:", mockPatients);
+        setDoctors(mockDoctors);
+        setStaff(mockStaff);
+        setPharmacy(mockPharmacy);
+        setPatients(mockPatients);
+
+        setStorageMode('localStorage');
+      } else {
+        console.log("No authentication found");
+        setDoctors([]);
+        setStaff([]);
+        setPharmacy([]);
+        setPatients([]);
+        setStorageMode('none');
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
+
+      // Fallback to localStorage if Firestore fails
+      const isPresetAdmin = localStorage.getItem('presetAdmin') === 'true';
+      if (isPresetAdmin) {
+        console.log("Firestore failed, falling back to local storage...");
+        const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+        const mockStaff = JSON.parse(localStorage.getItem('mockStaff') || '[]');
+        const mockPharmacy = JSON.parse(localStorage.getItem('mockPharmacy') || '[]');
+        const mockPatients = JSON.parse(localStorage.getItem('mockPatients') || '[]');
+
+        setDoctors(mockDoctors);
+        setStaff(mockStaff);
+        setPharmacy(mockPharmacy);
+        setPatients(mockPatients);
+        setStorageMode('localStorage');
+      }
     } finally {
       setLoading(false);
     }
@@ -118,20 +317,128 @@ const AdminDashboard = () => {
     }
   };
 
+  // Generate auto credentials
+  const generateCredentials = () => {
+    const timestamp = Date.now();
+    const randomNum = Math.floor(Math.random() * 1000);
+    const doctorId = `DOC_${timestamp}_${randomNum}`;
+    const autoEmail = `doctor${timestamp}@swasthyalink.com`;
+    const autoPassword = `Doc${timestamp.toString().slice(-6)}!`;
+
+    console.log("🔧 Generated credentials:", {
+      timestamp,
+      doctorId,
+      autoEmail,
+      autoPassword,
+      timestampSlice: timestamp.toString().slice(-6)
+    });
+
+    setFormData({
+      ...formData,
+      email: autoEmail,
+      password: autoPassword
+    });
+
+    return { doctorId, autoEmail, autoPassword };
+  };
+
   const handleAddDoctor = async (e) => {
     e.preventDefault();
+
+    if (!formData.name || !formData.specialization || !formData.license || !formData.phone) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    // Check if user is authenticated or using preset admin
+    const isPresetAdmin = localStorage.getItem('presetAdmin') === 'true';
+    if (!auth.currentUser && !isPresetAdmin) {
+      alert("User not authenticated");
+      return;
+    }
+
+    // Generate credentials if not provided
+    let doctorId, email, password;
+    if (!formData.email || !formData.password) {
+      const credentials = generateCredentials();
+      doctorId = credentials.doctorId;
+      email = credentials.autoEmail;
+      password = credentials.autoPassword;
+
+      console.log("🔧 Using generated credentials:", {
+        doctorId,
+        email,
+        password,
+        originalCredentials: credentials
+      });
+    } else {
+      doctorId = `DOC_${Date.now()}`;
+      email = formData.email.trim().toLowerCase();
+      password = formData.password;
+
+      console.log("🔧 Using manual credentials:", {
+        doctorId,
+        email,
+        password
+      });
+    }
+
+    const newDoctor = {
+      id: doctorId,
+      uid: doctorId,
+      name: formData.name.trim(),
+      email: email,
+      password: password, // In production, this should be hashed
+      specialization: formData.specialization.trim(),
+      license: formData.license.trim(),
+      phone: formData.phone.trim(),
+      role: "doctor",
+      status: "active",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
     try {
-      const newDoctor = {
-        name: formData.name,
-        email: formData.email,
-        specialization: formData.specialization,
-        license: formData.license,
-        phone: formData.phone,
-        role: "doctor",
-        createdAt: new Date().toISOString()
-      };
-      
-      await addDoc(collection(db, "users"), newDoctor);
+      setLoading(true);
+
+      console.log('Adding doctor:', newDoctor);
+
+      // Try to add to Firestore if authenticated, otherwise use local storage
+      if (auth.currentUser) {
+        console.log('Current user:', auth.currentUser.uid);
+        console.log('Adding doctor to Firestore:', newDoctor);
+
+        try {
+          const docRef = doc(db, "users", doctorId);
+          await setDoc(docRef, newDoctor);
+          console.log('Doctor added successfully to Firestore');
+        } catch (firestoreError) {
+          console.error('Firestore error:', firestoreError);
+          console.log('Falling back to localStorage due to Firestore error');
+
+          // Fallback to localStorage if Firestore fails
+          const existingDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+          existingDoctors.push(newDoctor);
+          localStorage.setItem('mockDoctors', JSON.stringify(existingDoctors));
+          window.dispatchEvent(new CustomEvent('mockDoctorsUpdated'));
+        }
+      } else if (isPresetAdmin) {
+        console.log('Using preset admin - storing in local storage');
+
+        // Store in localStorage for demo purposes
+        const existingDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+        existingDoctors.push(newDoctor);
+        localStorage.setItem('mockDoctors', JSON.stringify(existingDoctors));
+
+        // Trigger custom event for login page to update
+        window.dispatchEvent(new CustomEvent('mockDoctorsUpdated'));
+
+        console.log('Doctor added successfully to local storage');
+      }
+
+      alert(`Doctor added successfully!\n\nDoctor ID: ${doctorId}\nEmail: ${email}\nPassword: ${password}\nName: ${formData.name}`);
+
+      // Reset form
       setFormData({
         name: "",
         email: "",
@@ -141,19 +448,190 @@ const AdminDashboard = () => {
         phone: ""
       });
       setShowAddForm(false);
-      fetchData();
+      setIsEditing(false);
+      setEditingItem(null);
+
+      // Refresh the doctors list
+      await fetchData();
+
     } catch (error) {
       console.error("Error adding doctor:", error);
+
+      // Provide helpful error message
+      let errorMessage = "Error adding doctor: ";
+      if (error.message.includes('Missing or insufficient permissions')) {
+        errorMessage += "Database permissions error. Using local storage for demo purposes.";
+
+        // Fallback to localStorage
+        const isPresetAdmin = localStorage.getItem('presetAdmin') === 'true';
+        if (isPresetAdmin) {
+          try {
+            const existingDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+            existingDoctors.push(newDoctor);
+            localStorage.setItem('mockDoctors', JSON.stringify(existingDoctors));
+
+            alert(`Doctor added successfully (local storage)!\n\nDoctor ID: ${doctorId}\nEmail: ${email}\nPassword: ${password}\nName: ${formData.name}`);
+
+            // Reset form and refresh
+            setFormData({
+              name: "",
+              email: "",
+              password: "",
+              specialization: "",
+              license: "",
+              phone: ""
+            });
+            setShowAddForm(false);
+            setIsEditing(false);
+            setEditingItem(null);
+            await fetchData();
+            return;
+          } catch (localError) {
+            errorMessage += ` Local storage fallback also failed: ${localError.message}`;
+          }
+        }
+      } else {
+        errorMessage += error.message;
+      }
+
+      alert(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditDoctor = (doctor) => {
+    setEditingItem(doctor);
+    setIsEditing(true);
+    setFormData({
+      name: doctor.name,
+      email: doctor.email,
+      password: doctor.password || "",
+      specialization: doctor.specialization,
+      license: doctor.license,
+      phone: doctor.phone
+    });
+    setShowAddForm(true);
+  };
+
+  const handleUpdateDoctor = async (e) => {
+    e.preventDefault();
+
+    if (!formData.name || !formData.email || !formData.specialization || !formData.license || !formData.phone) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const updatedDoctor = {
+        ...editingItem,
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password || editingItem.password,
+        specialization: formData.specialization.trim(),
+        license: formData.license.trim(),
+        phone: formData.phone.trim(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const isPresetAdmin = localStorage.getItem('presetAdmin') === 'true';
+
+      if (auth.currentUser) {
+        // Update in Firestore
+        const docRef = doc(db, "users", editingItem.id);
+        await updateDoc(docRef, updatedDoctor);
+        console.log('Doctor updated successfully in Firestore');
+      } else if (isPresetAdmin) {
+        // Update in localStorage
+        const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+        const doctorIndex = mockDoctors.findIndex(doc => doc.id === editingItem.id);
+        if (doctorIndex !== -1) {
+          mockDoctors[doctorIndex] = updatedDoctor;
+          localStorage.setItem('mockDoctors', JSON.stringify(mockDoctors));
+          console.log('Doctor updated successfully in local storage');
+        }
+      }
+
+      alert(`Doctor updated successfully!\n\nName: ${formData.name}`);
+
+      // Reset form
+      setFormData({
+        name: "",
+        email: "",
+        password: "",
+        specialization: "",
+        license: "",
+        phone: ""
+      });
+      setShowAddForm(false);
+      setIsEditing(false);
+      setEditingItem(null);
+
+      // Refresh the doctors list
+      await fetchData();
+
+    } catch (error) {
+      console.error("Error updating doctor:", error);
+      alert(`Error updating doctor: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyToClipboard = async (text, type = 'text') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      // Show a brief success message
+      const message = type === 'email' ? 'Email copied!' :
+                     type === 'password' ? 'Password copied!' :
+                     type === 'credentials' ? 'Credentials copied!' : 'Copied!';
+
+      // Create a temporary toast notification
+      const toast = document.createElement('div');
+      toast.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-opacity';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => document.body.removeChild(toast), 300);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
     }
   };
 
   const handleDeleteDoctor = async (doctorId) => {
     if (window.confirm("Are you sure you want to delete this doctor?")) {
       try {
-        await deleteDoc(doc(db, "users", doctorId));
+        const isPresetAdmin = localStorage.getItem('presetAdmin') === 'true';
+
+        if (auth.currentUser) {
+          // Delete from Firestore
+          await deleteDoc(doc(db, "users", doctorId));
+          console.log('Doctor deleted successfully from Firestore');
+        } else if (isPresetAdmin) {
+          // Delete from localStorage
+          const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+          const filteredDoctors = mockDoctors.filter(doc => doc.id !== doctorId);
+          localStorage.setItem('mockDoctors', JSON.stringify(filteredDoctors));
+          console.log('Doctor deleted successfully from local storage');
+        }
+
         fetchData();
+        alert("Doctor deleted successfully!");
       } catch (error) {
         console.error("Error deleting doctor:", error);
+        alert(`Error deleting doctor: ${error.message}`);
       }
     }
   };
@@ -214,7 +692,11 @@ const AdminDashboard = () => {
 
   const handleFormSubmit = (e) => {
     if (activeTab === "doctors") {
-      handleAddDoctor(e);
+      if (isEditing) {
+        handleUpdateDoctor(e);
+      } else {
+        handleAddDoctor(e);
+      }
     } else if (activeTab === "staff") {
       handleAddStaff(e);
     } else if (activeTab === "pharmacy") {
@@ -254,6 +736,18 @@ const AdminDashboard = () => {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 Swasthyalink Admin
               </h1>
+              {storageMode === 'localStorage' && (
+                <div className="mt-1 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-900 text-yellow-200 border border-yellow-700">
+                  <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full mr-1.5"></span>
+                  Demo Mode
+                </div>
+              )}
+              {storageMode === 'firestore' && (
+                <div className="mt-1 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-900 text-green-200 border border-green-700">
+                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5"></span>
+                  Live Mode
+                </div>
+              )}
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
@@ -308,14 +802,41 @@ const AdminDashboard = () => {
         <main className="flex-1 p-8">
           {activeTab === "overview" && (
             <div className="space-y-8">
+              {/* Storage Mode Information */}
+              {storageMode === 'localStorage' && (
+                <div className="bg-gradient-to-r from-yellow-600 to-orange-600 rounded-xl p-6 shadow-lg border border-yellow-500">
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-white mb-2">Demo Mode Active</h3>
+                      <p className="text-yellow-100 text-sm mb-3">
+                        You're currently using the admin dashboard in demo mode. All data is stored locally in your browser
+                        and will be reset when you clear browser data. This is perfect for testing and demonstration purposes.
+                      </p>
+                      <div className="flex items-center space-x-4 text-xs text-yellow-200">
+                        <span>✓ Full CRUD operations</span>
+                        <span>✓ Auto-generated credentials</span>
+                        <span>✓ Sample data included</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Analytics Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-6 shadow-lg">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-blue-200 text-sm font-medium">Total Patients</p>
-                      <p className="text-3xl font-bold text-white">{analyticsData.totalPatients}</p>
-                      <p className="text-blue-200 text-sm">+{analyticsData.patientGrowth}% from last month</p>
+                      <p className="text-3xl font-bold text-white">{analytics.totalPatients}</p>
+                      <p className="text-blue-200 text-sm">+{analytics.patientGrowth}% from last month</p>
                     </div>
                     <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
                       <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,7 +850,7 @@ const AdminDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-green-200 text-sm font-medium">Total Doctors</p>
-                      <p className="text-3xl font-bold text-white">{analyticsData.totalDoctors}</p>
+                      <p className="text-3xl font-bold text-white">{analytics.totalDoctors}</p>
                       <p className="text-green-200 text-sm">Active medical staff</p>
                     </div>
                     <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
@@ -344,8 +865,8 @@ const AdminDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-purple-200 text-sm font-medium">Total Revenue</p>
-                      <p className="text-3xl font-bold text-white">${analyticsData.totalRevenue.toLocaleString()}</p>
-                      <p className="text-purple-200 text-sm">+{analyticsData.revenueGrowth}% from last month</p>
+                      <p className="text-3xl font-bold text-white">${analytics.totalRevenue.toLocaleString()}</p>
+                      <p className="text-purple-200 text-sm">+{analytics.revenueGrowth}% from last month</p>
                     </div>
                     <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
                       <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -359,7 +880,7 @@ const AdminDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-orange-200 text-sm font-medium">Appointments</p>
-                      <p className="text-3xl font-bold text-white">{analyticsData.appointments}</p>
+                      <p className="text-3xl font-bold text-white">{analytics.appointments}</p>
                       <p className="text-orange-200 text-sm">Today's appointments</p>
                     </div>
                     <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
@@ -427,6 +948,7 @@ const AdminDashboard = () => {
                           <>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Name</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Password</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Specialization</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">License</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Phone</th>
@@ -457,17 +979,63 @@ const AdminDashboard = () => {
                       {activeTab === "doctors" && doctors.map((doctor) => (
                         <tr key={doctor.id} className="hover:bg-gray-700">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{doctor.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{doctor.email}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <div className="flex items-center space-x-2">
+                              <span className="truncate max-w-xs" title={doctor.email}>{doctor.email}</span>
+                              <button
+                                onClick={() => copyToClipboard(doctor.email, 'email')}
+                                className="text-blue-400 hover:text-blue-300 transition-colors p-1 rounded hover:bg-gray-600"
+                                title="Copy email"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-xs bg-gray-700 px-2 py-1 rounded border">
+                                {doctor.password ? '••••••••' : 'N/A'}
+                              </span>
+                              {doctor.password && (
+                                <button
+                                  onClick={() => copyToClipboard(doctor.password, 'password')}
+                                  className="text-green-400 hover:text-green-300 transition-colors p-1 rounded hover:bg-gray-600"
+                                  title="Copy password"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{doctor.specialization}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{doctor.license}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{doctor.phone}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button
-                              onClick={() => handleDeleteDoctor(doctor.id)}
-                              className="text-red-400 hover:text-red-300 transition-colors"
-                            >
-                              Delete
-                            </button>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => copyToClipboard(`Email: ${doctor.email}\nPassword: ${doctor.password}`, 'credentials')}
+                                className="text-purple-400 hover:text-purple-300 transition-colors text-xs bg-purple-900 px-2 py-1 rounded"
+                                title="Copy both email and password"
+                              >
+                                Copy All
+                              </button>
+                              <button
+                                onClick={() => handleEditDoctor(doctor)}
+                                className="text-blue-400 hover:text-blue-300 transition-colors"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDoctor(doctor.id)}
+                                className="text-red-400 hover:text-red-300 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -478,12 +1046,24 @@ const AdminDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.role}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{member.phone}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button
-                              onClick={() => handleDeleteDoctor(member.id)}
-                              className="text-red-400 hover:text-red-300 transition-colors"
-                            >
-                              Delete
-                            </button>
+                            <div className="flex space-x-3">
+                              <button
+                                onClick={() => console.log('Edit staff member:', member)}
+                                className="text-gray-400 cursor-not-allowed transition-colors"
+                                disabled
+                                title="Edit functionality coming soon"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDoctor(member.id)}
+                                className="text-gray-400 cursor-not-allowed transition-colors"
+                                disabled
+                                title="Delete functionality coming soon"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -494,12 +1074,24 @@ const AdminDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${item.price}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{item.category}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button
-                              onClick={() => handleDeleteDoctor(item.id)}
-                              className="text-red-400 hover:text-red-300 transition-colors"
-                            >
-                              Delete
-                            </button>
+                            <div className="flex space-x-3">
+                              <button
+                                onClick={() => console.log('Edit pharmacy item:', item)}
+                                className="text-gray-400 cursor-not-allowed transition-colors"
+                                disabled
+                                title="Edit functionality coming soon"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDoctor(item.id)}
+                                className="text-gray-400 cursor-not-allowed transition-colors"
+                                disabled
+                                title="Delete functionality coming soon"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -518,7 +1110,7 @@ const AdminDashboard = () => {
           <div className="relative top-20 mx-auto p-8 border w-96 shadow-2xl rounded-xl bg-gray-800 border-gray-700">
             <div className="mt-3">
               <h3 className="text-xl font-bold text-white mb-6">
-                Add {activeTab.slice(0, -1)}
+                {isEditing ? `Edit ${activeTab.slice(0, -1)}` : `Add ${activeTab.slice(0, -1)}`}
               </h3>
               <form onSubmit={handleFormSubmit} className="space-y-6">
                 <div>
@@ -533,14 +1125,37 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
+                  <div className="flex space-x-2">
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter email or auto-generate"
+                    />
+                    {activeTab === "doctors" && !isEditing && (
+                      <button
+                        type="button"
+                        onClick={generateCredentials}
+                        className="bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
+                      >
+                        Auto Generate
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {activeTab === "doctors" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                    <input
+                      type="text"
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter password or auto-generate"
+                    />
+                  </div>
+                )}
                 {activeTab === "doctors" && (
                   <>
                     <div>
@@ -627,7 +1242,19 @@ const AdminDashboard = () => {
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
-                    onClick={() => setShowAddForm(false)}
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setIsEditing(false);
+                      setEditingItem(null);
+                      setFormData({
+                        name: "",
+                        email: "",
+                        password: "",
+                        specialization: "",
+                        license: "",
+                        phone: ""
+                      });
+                    }}
                     className="bg-gray-600 text-gray-300 px-6 py-3 rounded-lg hover:bg-gray-500 transition-colors"
                   >
                     Cancel
@@ -636,7 +1263,7 @@ const AdminDashboard = () => {
                     type="submit"
                     className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    Add
+                    {isEditing ? 'Update' : 'Add'}
                   </button>
                 </div>
               </form>
