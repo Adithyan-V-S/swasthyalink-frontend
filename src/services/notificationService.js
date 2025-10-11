@@ -23,7 +23,9 @@ export const NOTIFICATION_TYPES = {
   HEALTH_RECORD_SHARED: 'health_record_shared',
   APPOINTMENT_REMINDER: 'appointment_reminder',
   MEDICATION_REMINDER: 'medication_reminder',
-  SYSTEM_ALERT: 'system_alert'
+  SYSTEM_ALERT: 'system_alert',
+  DOCTOR_CONNECTION_REQUEST: 'doctor_connection_request',
+  PRESCRIPTION_RECEIVED: 'prescription_received'
 };
 
 // Create a new notification (Firestore write)

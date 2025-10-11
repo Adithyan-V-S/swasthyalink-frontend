@@ -5,7 +5,7 @@ import SnakeGame from "./SnakeGame";
 import heroImage from "../assets/images/hero-healthcare.jpg";
 import { useAuth } from "../contexts/AuthContext";
 import { subscribeToNotifications } from "../services/notificationService";
-
+import { getPendingRequests, acceptRequest, getConnectedDoctors, resendRequest } from "../services/patientDoctorService";
 
 const records = [
   {
@@ -77,79 +77,11 @@ const mockFamilyMembers = [
   }
 ];
 
-// Mock notifications
-const mockNotifications = [
-  {
-    id: 1,
-    type: "access_granted",
-    message: "Sarah Doe was granted full access to your health records",
-    timestamp: "2024-01-15 14:30",
-    read: false
-  },
-  {
-    id: 2,
-    type: "record_updated",
-    message: "New medical record added - Dr. Sharma consultation",
-    timestamp: "2024-01-14 10:15",
-    read: true
-  },
-  {
-    id: 3,
-    type: "emergency_access",
-    message: "Emergency access activated by Emma Doe",
-    timestamp: "2024-01-12 16:45",
-    read: false
-  }
-];
-
-// Move sidebarLinks inside component to access notifications state
-const getSidebarLinks = (notifications) => [
-  { label: "Dashboard", icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M13 5v6h6m-6 0v6m0 0H7m6 0h6" /></svg>
-    ) },
-  { label: "My Records", icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-    ) },
-  { label: "Family", icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-    ), badge: notifications.filter(n => !n.read && (n.type === 'family_request' || n.type === 'chat_message')).length },
-  { label: "Appointments", icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-    ), badge: notifications.filter(n => !n.read && n.type === 'appointment').length },
-  { label: "Prescriptions", icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 4h6a2 2 0 002-2v-5a2 2 0 00-2-2h-6a2 2 0 00-2 2v5a2 2 0 002 2z" /></svg>
-    ), badge: notifications.filter(n => !n.read && n.type === 'health_record').length },
-  { label: "Doctors", icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 7v-7m0 0l-9-5m9 5l9-5" /></svg>
-    ) },
-  { label: "Settings", icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
-    ) },
-  { label: "Game", icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6h13M9 6l-7 7 7 7" /></svg>
-    ) },
-];
-
-const helpSupportLink = { label: "Help & Support", icon: (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 14v.01M12 10a4 4 0 11-8 0 4 4 0 018 0zm0 0v4m0 4h.01" /></svg>
-)};
-
 const PatientDashboard = () => {
   const [uid, setUid] = useState("");
   const { currentUser } = useAuth();
+  const currentUserInfo = useCurrentUser();
   
-  // Safe user info with fallback
-  let currentUserInfo;
-  try {
-    currentUserInfo = useCurrentUser();
-  } catch (err) {
-    console.error('Error getting user info:', err);
-    currentUserInfo = {
-      name: 'Patient User',
-      email: 'patient@example.com',
-      avatar: 'https://ui-avatars.com/api/?name=Patient&background=4f46e5&color=fff&size=64'
-    };
-  }
   const [activeIdx, setActiveIdx] = useState(0);
   const [familyMembers, setFamilyMembers] = useState(mockFamilyMembers);
   const [notifications, setNotifications] = useState([]);
@@ -165,6 +97,46 @@ const PatientDashboard = () => {
     accessLevel: "limited",
     isEmergencyContact: false
   });
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [connectedDoctors, setConnectedDoctors] = useState([]);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [otp, setOtp] = useState("");
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [showTestNotification, setShowTestNotification] = useState(false);
+
+  // Move getSidebarLinks inside component to access notifications state
+  const getSidebarLinks = () => [
+    { label: "Dashboard", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M13 5v6h6m-6 0v6m0 0H7m6 0h6" /></svg>
+      ) },
+    { label: "My Records", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+      ) },
+    { label: "Family", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+      ), badge: (notifications || []).filter(n => !n.read && (n.type === 'family_request' || n.type === 'chat_message' || n.type === 'doctor_connection_request')).length },
+    { label: "Appointments", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+      ), badge: (notifications || []).filter(n => !n.read && n.type === 'appointment').length },
+    { label: "Prescriptions", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2a2 2 0 012-2h2a2 2 0 012 2v2m-6 4h6a2 2 0 002-2v-5a2 2 0 00-2-2h-6a2 2 0 00-2 2v5a2 2 0 002 2z" /></svg>
+      ), badge: (notifications || []).filter(n => !n.read && n.type === 'health_record').length },
+    { label: "Doctors", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 7v-7m0 0l-9-5m9 5l9-5" /></svg>
+      ) },
+    { label: "Settings", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
+      ) },
+    { label: "Game", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6h13M9 6l-7 7 7 7" /></svg>
+      ) },
+  ];
+
+  const helpSupportLink = { label: "Help & Support", icon: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 14v.01M12 10a4 4 0 11-8 0 4 4 0 018 0zm0 0v4m0 4h.01" /></svg>
+  )};
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -190,33 +162,162 @@ const PatientDashboard = () => {
       setNotifications(notifs || []);
     });
 
-    // Fallback: If Firebase fails, use mock notifications for testing
-    const fallbackTimer = setTimeout(() => {
-      if (notifications.length === 0) {
-        console.log('🔄 Using fallback notifications due to Firebase issues');
-        setNotifications([
-          {
-            id: 'fallback-1',
-            type: 'chat_message',
-            message: 'New message from family member',
-            timestamp: new Date(),
-            read: false
-          },
-          {
-            id: 'fallback-2',
-            type: 'appointment',
-            message: 'Appointment reminder for tomorrow',
-            timestamp: new Date(),
-            read: false
-          }
-        ]);
-      }
-    }, 3000);
-
     return () => {
       if (unsubscribe) unsubscribe();
-      clearTimeout(fallbackTimer);
     };
+  }, [currentUser]);
+
+  // Fetch pending requests and connected doctors
+  useEffect(() => {
+    const fetchRequestsAndDoctors = async () => {
+      if (!currentUser?.uid) {
+        console.log('PatientDashboard: No currentUser, skipping requests fetch');
+        return;
+      }
+
+      try {
+        console.log('PatientDashboard: Fetching requests for user:', currentUser.uid);
+        setIsLoadingRequests(true);
+        const [pendingReqs, connectedDocs] = await Promise.all([
+          getPendingRequests(currentUser.uid),
+          getConnectedDoctors(currentUser.uid)
+        ]);
+        
+        console.log('PatientDashboard: Pending requests:', pendingReqs);
+        console.log('PatientDashboard: Connected doctors:', connectedDocs);
+        setPendingRequests(pendingReqs || []);
+        setConnectedDoctors(connectedDocs || []);
+        
+        // Show notification if there are pending requests
+        if (pendingReqs && pendingReqs.length > 0) {
+          console.log('PatientDashboard: Found pending requests, showing notification');
+          // You can add a notification here if needed
+        }
+      } catch (error) {
+        console.error('Error fetching requests and doctors:', error);
+        // Add mock data for testing
+        console.log('PatientDashboard: Using mock data for testing');
+        setPendingRequests([
+          {
+            id: 'mock-request-1',
+            doctor: {
+              name: 'Dr. John Smith',
+              specialization: 'Cardiology',
+              email: 'dr.john@example.com'
+            },
+            connectionMethod: 'email',
+            message: 'Dr. John Smith wants to connect with you to provide medical care.',
+            createdAt: new Date().toISOString(),
+            status: 'pending'
+          }
+        ]);
+        setConnectedDoctors([]);
+        
+        // Add a notification for the mock request
+        console.log('PatientDashboard: Mock request added, showing notification');
+        
+        // Add notification to the notifications array
+        const mockNotification = {
+          id: 'mock-notification-1',
+          type: 'doctor_connection_request',
+          title: 'New Doctor Connection Request',
+          message: 'Dr. John Smith wants to connect with you',
+          timestamp: new Date(),
+          read: false
+        };
+        
+        const mockEmergencyNotification = {
+          id: 'mock-emergency-1',
+          type: 'emergency_alert',
+          title: 'Emergency Alert',
+          message: 'This is a test emergency alert - please respond!',
+          timestamp: new Date(),
+          read: false
+        };
+        
+        setNotifications(prev => {
+          const newNotifications = [mockNotification, mockEmergencyNotification, ...prev];
+          console.log('PatientDashboard: Notifications updated:', newNotifications);
+          return newNotifications;
+        });
+        
+        // Also add to Firestore for header notifications
+        try {
+          const { addDoc, collection } = await import('firebase/firestore');
+          const { db } = await import('../firebaseConfig');
+          await addDoc(collection(db, 'notifications'), {
+            recipientId: currentUser.uid,
+            senderId: 'system',
+            type: 'doctor_connection_request',
+            title: 'New Doctor Connection Request',
+            message: 'Dr. John Smith wants to connect with you',
+            data: {
+              requestId: 'mock-request-1',
+              doctorName: 'Dr. John Smith'
+            },
+            priority: 'high',
+            read: false,
+            deleted: false,
+            timestamp: new Date()
+          });
+          console.log('Mock notification added to Firestore');
+        } catch (firestoreError) {
+          console.warn('Failed to add notification to Firestore:', firestoreError);
+        }
+      } finally {
+        setIsLoadingRequests(false);
+      }
+    };
+
+    fetchRequestsAndDoctors();
+  }, [currentUser]);
+
+  // Fetch prescriptions from backend
+  useEffect(() => {
+    const fetchPrescriptions = async () => {
+      if (!currentUser?.uid) return;
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const API_BASE = 'http://localhost:3001/api';
+        const response = await fetch(`${API_BASE}/prescriptions?patientUid=${currentUser.uid}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setPrescriptions(data.prescriptions || []);
+      } catch (error) {
+        console.error('Error fetching prescriptions:', error);
+        // Fallback to mock data
+        const mockPrescriptions = [
+          {
+            id: 1,
+            doctor: "Dr. A. Sharma",
+            date: "2024-05-01",
+            medication: "Amlodipine 5mg",
+            dosage: "1 tablet daily",
+            notes: "Monitor BP"
+          },
+          {
+            id: 2,
+            doctor: "Dr. R. Singh",
+            date: "2024-03-15",
+            medication: "Metformin 500mg",
+            dosage: "2 tablets daily",
+            notes: "With meals"
+          }
+        ];
+        setPrescriptions(mockPrescriptions);
+      }
+    };
+
+    fetchPrescriptions();
   }, [currentUser]);
 
   const qrValue = uid ? `https://yourapp.com/patient/${uid}` : "";
@@ -229,7 +330,7 @@ const PatientDashboard = () => {
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newFamilyMember.name)}&background=${Math.floor(Math.random()*16777215).toString(16)}&color=fff&size=64`,
         lastAccess: "Never"
       };
-      setFamilyMembers([...familyMembers, member]);
+      setFamilyMembers(prev => [...(prev || []), member]);
       setNewFamilyMember({
         name: "",
         relationship: "",
@@ -248,45 +349,83 @@ const PatientDashboard = () => {
         timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
         read: false
       };
-      setNotifications([notification, ...notifications]);
+      setNotifications(prev => [notification, ...(prev || [])]);
     }
   };
 
   const handleRemoveFamilyMember = (id) => {
-    const member = familyMembers.find(m => m.id === id);
-    setFamilyMembers(familyMembers.filter(m => m.id !== id));
+    const member = (familyMembers || []).find(m => m.id === id);
+    setFamilyMembers(prev => (prev || []).filter(m => m.id !== id));
     
     // Add notification
     const notification = {
       id: Date.now(),
       type: "family_removed",
-      message: `${member.name} was removed from your family members`,
+      message: `${member?.name || 'Unknown'} was removed from your family members`,
       timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
       read: false
     };
-    setNotifications([notification, ...notifications]);
+    setNotifications(prev => [notification, ...(prev || [])]);
   };
 
   const handleUpdateAccessLevel = (id, newLevel) => {
-    setFamilyMembers(familyMembers.map(m => 
+    setFamilyMembers(prev => (prev || []).map(m => 
       m.id === id ? { ...m, accessLevel: newLevel } : m
     ));
     
-    const member = familyMembers.find(m => m.id === id);
+    const member = (familyMembers || []).find(m => m.id === id);
     const notification = {
       id: Date.now(),
       type: "access_updated",
-      message: `${member.name}'s access level was updated to ${newLevel}`,
+      message: `${member?.name || 'Unknown'}'s access level was updated to ${newLevel}`,
       timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
       read: false
     };
-    setNotifications([notification, ...notifications]);
+    setNotifications(prev => [notification, ...(prev || [])]);
   };
 
   const markNotificationAsRead = (id) => {
-    setNotifications(notifications.map(n => 
+    setNotifications(prev => (prev || []).map(n =>
       n.id === id ? { ...n, read: true } : n
     ));
+  };
+
+  const handleAcceptRequest = (request) => {
+    setSelectedRequest(request);
+    setShowOtpModal(true);
+  };
+
+  const handleOtpSubmit = async () => {
+    if (!selectedRequest || !otp) return;
+
+    try {
+      await acceptRequest(selectedRequest.id, otp);
+      setPendingRequests(prev => (prev || []).filter(req => req.id !== selectedRequest.id));
+      setConnectedDoctors(prev => [...(prev || []), selectedRequest.doctor]);
+      setShowOtpModal(false);
+      setOtp("");
+      setSelectedRequest(null);
+      // Add success notification
+      const notification = {
+        id: Date.now(),
+        type: "doctor_connected",
+        message: `Successfully connected with Dr. ${selectedRequest.doctor?.name || 'Unknown'}`,
+        timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        read: false
+      };
+      setNotifications(prev => [notification, ...(prev || [])]);
+    } catch (error) {
+      console.error('Error accepting request:', error);
+      // Add error notification
+      const notification = {
+        id: Date.now(),
+        type: "error",
+        message: "Failed to accept doctor request. Please check your OTP.",
+        timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        read: false
+      };
+      setNotifications(prev => [notification, ...(prev || [])]);
+    }
   };
 
   const renderFamilySection = () => (
@@ -304,7 +443,7 @@ const PatientDashboard = () => {
         </div>
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {familyMembers.map((member) => (
+          {(familyMembers || []).map((member) => (
             <div key={member.id} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
               <div className="flex items-center mb-4">
                 <img src={member.avatar} alt={member.name} className="w-12 h-12 rounded-full mr-3" />
@@ -360,7 +499,7 @@ const PatientDashboard = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-red-800 mb-4">Emergency Contacts</h3>
           <div className="space-y-3">
-            {familyMembers.filter(m => m.isEmergencyContact).map((member) => (
+            {(familyMembers || []).filter(m => m.isEmergencyContact).map((member) => (
               <div key={member.id} className="flex items-center justify-between bg-white p-3 rounded border">
                 <div className="flex items-center">
                   <img src={member.avatar} alt={member.name} className="w-8 h-8 rounded-full mr-3" />
@@ -395,7 +534,7 @@ const PatientDashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {familyMembers.map((member) => (
+              {(familyMembers || []).map((member) => (
                 <tr key={member.id} className="hover:bg-indigo-50 transition-colors">
                   <td className="px-4 py-2 border-b">
                     <div className="flex items-center">
@@ -429,7 +568,7 @@ const PatientDashboard = () => {
     <div className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
       <h2 className="text-2xl font-bold text-indigo-700 mb-6">Notifications</h2>
       <div className="space-y-4">
-        {notifications.map((notification) => (
+        {(notifications || []).map((notification) => (
           <div
             key={notification.id}
             className={`p-4 rounded-lg border-l-4 ${
@@ -454,23 +593,197 @@ const PatientDashboard = () => {
     </div>
   );
 
+  const renderPrescriptionsSection = () => (
+    <div className="w-full max-w-6xl space-y-8">
+      <section className="bg-white rounded-xl shadow-lg p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-indigo-700">My Prescriptions</h2>
+          <button
+            onClick={() => {
+              const mockNotification = {
+                id: 'test-notification-' + Date.now(),
+                type: 'doctor_connection_request',
+                title: 'Test Doctor Request',
+                message: 'Dr. Test Doctor wants to connect with you',
+                timestamp: new Date(),
+                read: false
+              };
+              setNotifications(prev => [mockNotification, ...prev]);
+              console.log('Test notification added:', mockNotification);
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+          >
+            Test Notification
+          </button>
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(prescriptions || []).map((prescription) => (
+            <div key={prescription.id} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+              <div className="flex items-center mb-4">
+                <img 
+                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctor)}&background=4f46e5&color=fff&size=48`} 
+                  alt={prescription.doctor} 
+                  className="w-12 h-12 rounded-full mr-3" 
+                />
+                <div>
+                  <h3 className="font-semibold text-gray-800">{prescription.doctor}</h3>
+                  <p className="text-sm text-gray-600">{prescription.date}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Medication: {prescription.medication}</p>
+                <p className="text-sm">Dosage: {prescription.dosage}</p>
+                <p className="text-sm text-gray-600">Notes: {prescription.notes}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        {prescriptions.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            <p>No prescriptions available</p>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+
+  const renderDoctorsSection = () => (
+    <div className="w-full max-w-6xl space-y-8">
+      {/* Pending Requests */}
+      <section className="bg-white rounded-xl shadow-lg p-8">
+        <h2 className="text-2xl font-bold text-indigo-700 mb-6">Pending Doctor Requests</h2>
+        {isLoadingRequests ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading requests...</p>
+          </div>
+        ) : (pendingRequests || []).length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>No pending doctor requests</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {(pendingRequests || []).map((request) => (
+              <div key={request.id} className="bg-yellow-50 rounded-lg p-6 border border-yellow-200">
+                <div className="flex items-center mb-4">
+                  <img
+                    src={request.doctor?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(request.doctor?.name || 'Doctor')}&background=4f46e5&color=fff&size=64`}
+                    alt={request.doctor?.name}
+                    className="w-12 h-12 rounded-full mr-3"
+                  />
+                  <div>
+                    <h3 className="font-semibold text-gray-800">Dr. {request.doctor?.name || 'Unknown'}</h3>
+                    <p className="text-sm text-gray-600">{request.doctor?.specialization || 'Specialist'}</p>
+                  </div>
+                </div>
+                <div className="space-y-2 mb-4">
+                  <p className="text-sm text-gray-600">{request.doctor?.email || 'N/A'}</p>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 border">Method: {request.connectionMethod || 'email'}</span>
+                    {request.otpExpiry && (
+                      <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">Expires: {request.otpExpiry?.toLocaleTimeString?.() || new Date(request.otpExpiry).toLocaleTimeString()}</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600">Requested: {request.createdAt?.toDate?.().toLocaleDateString?.() || new Date(request.createdAt).toLocaleDateString()}</p>
+                  {request.message && <p className="text-sm italic text-gray-500">" {request.message} "</p>}
+                </div>
+                <button
+                  onClick={() => handleAcceptRequest(request)}
+                  className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700"
+                >
+                  Verify & Accept
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await resendRequest(request.id);
+                      // trigger refresh to get new expiry
+                      const refreshed = await getPendingRequests();
+                      setPendingRequests(refreshed || []);
+                    } catch (e) {
+                      console.error('Resend OTP failed', e);
+                    }
+                  }}
+                  className="w-full mt-2 bg-white text-indigo-700 border border-indigo-200 py-2 rounded-lg hover:bg-indigo-50"
+                >
+                  Resend OTP
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Connected Doctors */}
+      <section className="bg-white rounded-xl shadow-lg p-8">
+        <h2 className="text-2xl font-bold text-indigo-700 mb-6">Connected Doctors</h2>
+        {(connectedDoctors || []).length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>No connected doctors</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {(connectedDoctors || []).map((doctor) => (
+              <div key={doctor.id} className="bg-green-50 rounded-lg p-6 border border-green-200">
+                <div className="flex items-center mb-4">
+                  <img
+                    src={doctor.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=10b981&color=fff&size=64`}
+                    alt={doctor.name}
+                    className="w-12 h-12 rounded-full mr-3"
+                  />
+                  <div>
+                    <h3 className="font-semibold text-gray-800">Dr. {doctor.name}</h3>
+                    <p className="text-sm text-gray-600">{doctor.specialization || 'Specialist'}</p>
+                  </div>
+                </div>
+                <div className="space-y-2 mb-4">
+                  <p className="text-sm text-gray-600">{doctor.email}</p>
+                  <p className="text-sm text-gray-600">Connected: {doctor.connectedAt?.toLocaleDateString()}</p>
+                </div>
+                <div className="flex gap-2">
+                  <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Prescriptions: {doctor.permissions?.prescriptions ? 'Enabled' : 'Disabled'}</span>
+                  <button className="text-sm text-indigo-600 hover:text-indigo-800">View Details</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+
   const renderMainContent = () => {
-    try {
-      switch (activeIdx) {
+    switch (activeIdx) {
       case 0: // Dashboard
         return (
           <>
-            {/* Top hero + KPI + QR layout inspired by your reference */}
+            {/* Top hero + KPI + QR layout */}
             <section className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-              {/* Hero card with illustration */}
+              {/* Hero card */}
               <div className="lg:col-span-6 bg-white rounded-2xl shadow-lg p-8 flex items-center justify-between">
                 <div>
-                  {/* Use current user's first name if available */}
                   <h1 className="text-3xl font-extrabold text-gray-900">Hey, {currentUserInfo.name.split(' ')[0]}!</h1>
                   <p className="mt-2 text-gray-600">Let's monitor your health.</p>
                   <div className="mt-6 flex gap-3">
                     <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm">HRV 84 ms</span>
                     <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm">Cholesterol 166 mg/dl</span>
+                    <button
+                      onClick={() => {
+                        const mockNotification = {
+                          id: 'test-notification-' + Date.now(),
+                          type: 'doctor_connection_request',
+                          title: 'Test Doctor Request',
+                          message: 'Dr. Test Doctor wants to connect with you',
+                          timestamp: new Date(),
+                          read: false
+                        };
+                        setNotifications(prev => [mockNotification, ...prev]);
+                        console.log('Test notification added:', mockNotification);
+                      }}
+                      className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-sm hover:bg-green-100"
+                    >
+                      Test Notification
+                    </button>
                   </div>
                 </div>
                 <img src={heroImage} alt="health" className="hidden md:block w-48 h-48 object-cover rounded-xl" />
@@ -490,6 +803,27 @@ const PatientDashboard = () => {
                   <div className="mt-3 h-3 bg-gray-100 rounded-full">
                     <div className="h-3 bg-green-400 rounded-full" style={{ width: '86%' }} />
                   </div>
+                </div>
+              </div>
+
+              {/* Emergency Notifications */}
+              <div className="lg:col-span-3 bg-red-50 rounded-2xl shadow-lg p-6 border border-red-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-red-800">Emergency Alerts</h3>
+                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                    {notifications.filter(n => n.type === 'emergency_alert').length}
+                  </span>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {notifications.filter(n => n.type === 'emergency_alert').slice(0, 2).map((notification) => (
+                    <div key={notification.id} className="bg-white rounded-lg p-3 border border-red-200">
+                      <p className="text-sm font-medium text-red-800">{notification.title}</p>
+                      <p className="text-xs text-red-600 mt-1">{notification.message}</p>
+                    </div>
+                  ))}
+                  {notifications.filter(n => n.type === 'emergency_alert').length === 0 && (
+                    <p className="text-sm text-red-600">No emergency alerts</p>
+                  )}
                 </div>
               </div>
 
@@ -534,7 +868,6 @@ const PatientDashboard = () => {
                     <span className="text-sm text-gray-700">Glucose Level</span>
                     <span className="text-sm font-semibold text-gray-900">9.0 mmol/L ↗</span>
                   </button>
-
                 </div>
               </div>
 
@@ -642,169 +975,165 @@ const PatientDashboard = () => {
           </section>
         );
       case 4: // Prescriptions
-        return (
-          <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">Prescriptions</h2>
-            <div className="text-center text-gray-500">
-              <p>Prescription management coming soon...</p>
-            </div>
-          </section>
-        );
+        return renderPrescriptionsSection();
       case 5: // Doctors
-        return (
-          <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">Doctors</h2>
-            <div className="text-center text-gray-500">
-              <p>Doctor directory coming soon...</p>
-            </div>
-          </section>
-        );
+        return renderDoctorsSection();
       case 6: // Settings
         return (
           <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
             <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">Settings</h2>
             <div className="text-center text-gray-500">
-              <p>Settings management coming soon...</p>
+              <p>Settings coming soon...</p>
             </div>
           </section>
         );
       case 7: // Game
-        return (
-          <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8 flex flex-col items-center">
-            <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">Play Snake Game</h2>
-            <SnakeGame />
-          </section>
-        );
+        return <SnakeGame />;
       default:
         return null;
-      }
-    } catch (error) {
-      console.error('Error rendering main content:', error);
-      return (
-        <div className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Content</h2>
-          <p className="text-gray-600">There was an issue loading the dashboard content. Please refresh the page.</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
-          >
-            Refresh Page
-          </button>
-        </div>
-      );
     }
   };
 
-  // Show loading state
   if (isLoading) {
     return (
-      <main className="min-h-[80vh] bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-10 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
-        </div>
-      </main>
-    );
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <main className="min-h-[80vh] bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-10 flex items-center justify-center">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
-          >
-            Refresh Page
-          </button>
-        </div>
-      </main>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-[80vh] bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-10 flex flex-row items-start">
-      {/* Sidebar */}
-      <aside className="flex flex-col h-full bg-black rounded-2xl shadow-xl mr-8 p-2 sticky top-10 z-10 justify-between w-56">
-        <div>
-          {/* User Profile Section */}
-          <div className="flex flex-col items-center mb-8">
-            <img src={currentUserInfo.avatar} alt="avatar" className="w-16 h-16 rounded-full border-2 border-indigo-500 mb-2" />
-            <div className="font-semibold text-indigo-700 whitespace-nowrap">{currentUserInfo.name}</div>
-            <div className="text-xs text-gray-500 whitespace-nowrap">{currentUserInfo.email}</div>
+    <main className="min-h-screen bg-gray-50">
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="w-64 bg-white shadow-lg min-h-screen">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-8">
+              <img src={currentUserInfo.avatar} alt="profile" className="w-10 h-10 rounded-full" />
+              <div>
+                <div className="font-semibold text-gray-900">{currentUserInfo.name}</div>
+                <div className="text-xs text-gray-500">Patient</div>
+              </div>
+            </div>
+
+            <nav className="space-y-2">
+              {getSidebarLinks().map((link, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveIdx(idx)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                    activeIdx === idx ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {link.icon}
+                  <span className="flex-1">{link.label}</span>
+                  {link.badge > 0 && (
+                    <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                      {link.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100">
+                {helpSupportLink.icon}
+                <span>{helpSupportLink.label}</span>
+              </button>
+            </div>
           </div>
-          <div className="text-2xl font-bold text-indigo-700 mb-6 text-center">Menu</div>
-          {getSidebarLinks(notifications).map((link, idx) => (
-            <button
-              key={idx}
-              className={`flex items-center gap-3 px-4 py-2 rounded-lg font-medium transition-colors relative w-full ${activeIdx === idx ? 'bg-indigo-100 text-indigo-900 font-bold' : 'hover:bg-indigo-100 text-indigo-700'}`}
-              onClick={() => setActiveIdx(idx)}
-              title={link.label}
-            >
-              {link.icon}
-              <span className="ml-2 whitespace-nowrap">{link.label}</span>
-              {link.badge && link.badge > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5 font-bold animate-pulse">{link.badge}</span>
-              )}
-            </button>
-          ))}
         </div>
-        {/* Help & Support at the bottom */}
-        <button
-          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-indigo-50 text-indigo-600 font-medium transition-colors mt-8 w-full"
-          title={helpSupportLink.label}
-        >
-          {helpSupportLink.icon}
-          <span className="ml-2 whitespace-nowrap">{helpSupportLink.label}</span>
-        </button>
-      </aside>
-      
-      {/* Main content */}
-      <div className="flex-1 flex flex-col items-center">
-        {renderMainContent()}
+
+        {/* Main Content */}
+        <div className="flex-1 p-8">
+          <div className="max-w-7xl mx-auto">
+            {renderMainContent()}
+          </div>
+        </div>
       </div>
+
+      {/* OTP Modal */}
+      {showOtpModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Verify Doctor Request</h3>
+            <p className="text-gray-600 mb-6">
+              Enter the OTP sent to your email to accept the connection request from Dr. {selectedRequest?.doctor?.name}.
+            </p>
+            <input
+              type="text"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              placeholder="Enter 6-digit OTP"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              maxLength="6"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleOtpSubmit}
+                className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700"
+              >
+                Accept Request
+              </button>
+              <button
+                onClick={() => {
+                  setShowOtpModal(false);
+                  setOtp("");
+                  setSelectedRequest(null);
+                }}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Family Member Modal */}
       {showAddFamily && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold text-indigo-700 mb-6">Add Family Member</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Add Family Member</h3>
             <div className="space-y-4">
               <input
                 type="text"
-                placeholder="Full Name"
+                placeholder="Name"
                 value={newFamilyMember.name}
-                onChange={(e) => setNewFamilyMember({...newFamilyMember, name: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg"
-              />
-              <input
-                type="text"
-                placeholder="Relationship"
-                value={newFamilyMember.relationship}
-                onChange={(e) => setNewFamilyMember({...newFamilyMember, relationship: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg"
+                onChange={(e) => setNewFamilyMember(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
               <input
                 type="email"
                 placeholder="Email"
                 value={newFamilyMember.email}
-                onChange={(e) => setNewFamilyMember({...newFamilyMember, email: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg"
+                onChange={(e) => setNewFamilyMember(prev => ({ ...prev, email: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
               <input
                 type="tel"
-                placeholder="Phone Number"
+                placeholder="Phone"
                 value={newFamilyMember.phone}
-                onChange={(e) => setNewFamilyMember({...newFamilyMember, phone: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg"
+                onChange={(e) => setNewFamilyMember(prev => ({ ...prev, phone: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
               <select
+                value={newFamilyMember.relationship}
+                onChange={(e) => setNewFamilyMember(prev => ({ ...prev, relationship: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="">Select Relationship</option>
+                <option value="Spouse">Spouse</option>
+                <option value="Child">Child</option>
+                <option value="Parent">Parent</option>
+                <option value="Sibling">Sibling</option>
+                <option value="Other">Other</option>
+              </select>
+              <select
                 value={newFamilyMember.accessLevel}
-                onChange={(e) => setNewFamilyMember({...newFamilyMember, accessLevel: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg"
+                onChange={(e) => setNewFamilyMember(prev => ({ ...prev, accessLevel: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               >
                 <option value="limited">Limited Access</option>
                 <option value="full">Full Access</option>
@@ -814,13 +1143,13 @@ const PatientDashboard = () => {
                 <input
                   type="checkbox"
                   checked={newFamilyMember.isEmergencyContact}
-                  onChange={(e) => setNewFamilyMember({...newFamilyMember, isEmergencyContact: e.target.checked})}
+                  onChange={(e) => setNewFamilyMember(prev => ({ ...prev, isEmergencyContact: e.target.checked }))}
                   className="mr-2"
                 />
                 Emergency Contact
               </label>
             </div>
-            <div className="flex gap-4 mt-6">
+            <div className="flex gap-3 mt-6">
               <button
                 onClick={handleAddFamilyMember}
                 className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700"
@@ -829,7 +1158,7 @@ const PatientDashboard = () => {
               </button>
               <button
                 onClick={() => setShowAddFamily(false)}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400"
+                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
               >
                 Cancel
               </button>
@@ -842,21 +1171,24 @@ const PatientDashboard = () => {
       {showEmergencyAccess && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold text-red-700 mb-6">Emergency Access Granted</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Grant Emergency Access</h3>
             <p className="text-gray-600 mb-6">
-              Emergency access has been activated. Your emergency contacts can now view your critical health information for the next 24 hours.
+              This will grant temporary full access to your medical records for emergency purposes.
             </p>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-red-800">
-                <strong>Note:</strong> This access will automatically expire in 24 hours for security reasons.
-              </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowEmergencyAccess(false)}
+                className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700"
+              >
+                Grant Access
+              </button>
+              <button
+                onClick={() => setShowEmergencyAccess(false)}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
             </div>
-            <button
-              onClick={() => setShowEmergencyAccess(false)}
-              className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700"
-            >
-              Acknowledge
-            </button>
           </div>
         </div>
       )}
@@ -864,4 +1196,4 @@ const PatientDashboard = () => {
   );
 };
 
-export default PatientDashboard; 
+export default PatientDashboard;

@@ -37,9 +37,12 @@ const Register = () => {
   // Handle redirect result from Google sign-up
   useEffect(() => {
     const handleRedirectResult = async () => {
+      console.log("🔄 Checking for redirect result in register...");
       try {
         const result = await getRedirectResult(auth);
+        console.log("📥 Redirect result:", result);
         if (result) {
+          console.log("✅ Google redirect sign-up successful:", result);
           const user = result.user;
           console.log("Google redirect sign up successful, user:", user.uid, "email:", user.email);
           
@@ -64,10 +67,14 @@ const Register = () => {
             console.error("Error saving to Firestore:", firestoreError);
             setError("Failed to save user data: " + firestoreError.message);
           }
+        } else {
+          console.log("ℹ️ No redirect result found - normal page load");
         }
       } catch (error) {
-        console.error("Error handling redirect result:", error);
-        setError("Google sign-up failed. Please try again.");
+        console.error("❌ Redirect result error:", error);
+        console.error("Error code:", error.code);
+        console.error("Error message:", error.message);
+        setError("Redirect authentication failed. Please try again or use popup method.");
       }
     };
 
@@ -91,15 +98,95 @@ const Register = () => {
 
   const handleGoogleSignUp = async () => {
     setError("");
+    const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+
     try {
-      console.log("Starting Google sign up with redirect method");
-      
-      // Use redirect method directly to avoid COOP issues
-      await signInWithRedirect(auth, googleProvider);
-      // The redirect will handle the rest, and the useEffect will process the result
+      console.log("🚀 Starting Google sign up");
+      console.log("📍 Current origin:", window.location.origin);
+      console.log("🌐 Environment:", isProduction ? 'production' : 'development');
+      console.log("🔗 Auth domain:", auth.config.authDomain);
+
+      // Force redirect in development to bypass popup issues
+      const useRedirect = !isProduction || true; // Force true for development to test redirect
+
+      console.log("🔄 Auth strategy:", useRedirect ? 'Redirect method' : 'Popup first');
+
+      if (useRedirect) {
+        console.log("🔄 Using redirect authentication to bypass popup issues");
+        setError("Redirecting to Google for authentication...");
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+
+      let result;
+      console.log("🪟 Attempting popup authentication...");
+      try {
+        result = await signInWithPopup(auth, googleProvider);
+        console.log("✅ Popup authentication successful");
+      } catch (popupError) {
+        console.log("⚠️ Popup failed:", popupError.code, popupError.message);
+
+        // Check if it's a recoverable error
+        if (popupError.code === 'auth/popup-blocked') {
+          console.log("🛡️ Popup blocked, falling back to redirect");
+          setError("Popup was blocked. Redirecting to Google...");
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } else if (popupError.code === 'auth/popup-closed-by-user') {
+          setError("Sign-up was cancelled. Please try again.");
+          return;
+        } else if (popupError.code === 'auth/internal-error') {
+          console.log("🔧 OAuth error detected, forcing redirect fallback");
+          setError("Authentication issue detected. Redirecting to Google...");
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } else {
+          // For other errors, still try redirect as fallback
+          console.log("🔄 Trying redirect as fallback for error:", popupError.code);
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        }
+      }
+
+      const user = result.user;
+      console.log("✅ Google popup sign up successful!");
+      console.log("👤 User ID:", user.uid);
+      console.log("📧 Email:", user.email);
+      console.log("👤 Display Name:", user.displayName);
+
+      // Always set role as "patient" for Google sign-ups
+      const userData = {
+        uid: user.uid,
+        name: user.displayName,
+        email: user.email,
+        role: "patient",
+        createdAt: new Date().toISOString()
+      };
+
+      console.log("💾 Saving user data to Firestore:", userData);
+
+      try {
+        await setDoc(doc(db, "users", user.uid), userData);
+        console.log("✅ User data successfully saved to Firestore");
+        console.log("🚀 Navigating to patient dashboard...");
+        navigate("/patientdashboard");
+      } catch (firestoreError) {
+        console.error("❌ Error saving to Firestore:", firestoreError);
+        setError("Failed to create user profile. Please try again.");
+      }
+
     } catch (error) {
-      console.error("Google sign up redirect failed:", error);
-      setError("Google sign up failed: " + error.message);
+      console.error("❌ Google sign-up failed:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+
+      if (error.code === 'auth/popup-closed-by-user') {
+        setError("Sign-up was cancelled. Please try again.");
+      } else if (error.code === 'auth/popup-blocked') {
+        setError("Popup was blocked by browser. Please allow popups and try again.");
+      } else {
+        setError(`Google sign-up failed: ${error.message}. Please check your browser settings and try again.`);
+      }
     }
   };
 

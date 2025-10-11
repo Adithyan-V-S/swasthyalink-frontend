@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Test Doctor User</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #4f46e5;
+            text-align: center;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .info {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        button {
+            background: #4f46e5;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #4338ca;
+        }
+        .credentials {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Setup Test Doctor User</h1>
+        
+        <div class="info">
+            <strong>Purpose:</strong> This will set up a test doctor user for development that works with the doctor dashboard.
+        </div>
+
+        <div class="credentials">
+            <h3>📋 Test Doctor Credentials:</h3>
+            <p><strong>Email:</strong> doctor1758810279159@swasthyalink.com</p>
+            <p><strong>Name:</strong> Dr. Test Doctor</p>
+            <p><strong>Specialization:</strong> General Medicine</p>
+            <p><strong>Role:</strong> Doctor</p>
+        </div>
+
+        <button onclick="setupTestUser()">🚀 Setup Test Doctor User</button>
+        
+        <div id="result"></div>
+
+        <div class="info">
+            <h3>📝 Next Steps:</h3>
+            <ol>
+                <li>Click the "Setup Test Doctor User" button above</li>
+                <li>Go to your SwasthyaLink application</li>
+                <li>Navigate to the doctor dashboard</li>
+                <li>The test user should be automatically logged in</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function setupTestUser() {
+            try {
+                // Create test doctor user data
+                const testDoctor = {
+                    uid: 'test-doctor-uid-1758810279159',
+                    email: 'doctor1758810279159@swasthyalink.com',
+                    displayName: 'Dr. Test Doctor',
+                    emailVerified: true,
+                    role: 'doctor',
+                    specialization: 'General Medicine',
+                    name: 'Dr. Test Doctor',
+                    license: 'LIC123456',
+                    experience: '5 years',
+                    description: 'Experienced general medicine doctor',
+                    phone: '+1234567890',
+                    status: 'active'
+                };
+
+                // Store in localStorage
+                localStorage.setItem('testUser', JSON.stringify(testDoctor));
+                localStorage.setItem('testUserRole', 'doctor');
+                localStorage.setItem('isAuthenticated', 'true');
+
+                // Show success message
+                document.getElementById('result').innerHTML = `
+                    <div class="success">
+                        <h3>✅ Test Doctor User Setup Complete!</h3>
+                        <p><strong>Email:</strong> ${testDoctor.email}</p>
+                        <p><strong>Name:</strong> ${testDoctor.name}</p>
+                        <p><strong>Role:</strong> ${testDoctor.role}</p>
+                        <p><strong>Specialization:</strong> ${testDoctor.specialization}</p>
+                        <br>
+                        <p><strong>🎉 You can now access the doctor dashboard!</strong></p>
+                        <p>Go to your SwasthyaLink application and navigate to the doctor dashboard.</p>
+                    </div>
+                `;
+
+                console.log('✅ Test doctor user created:', testDoctor);
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <div style="background: #fee2e2; color: #991b1b; padding: 15px; border-radius: 5px;">
+                        <h3>❌ Error Setting Up Test User</h3>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+                console.error('Error setting up test user:', error);
+            }
+        }
+
+        // Check if test user is already set up
+        window.onload = function() {
+            const existingTestUser = localStorage.getItem('testUser');
+            if (existingTestUser) {
+                const user = JSON.parse(existingTestUser);
+                document.getElementById('result').innerHTML = `
+                    <div class="success">
+                        <h3>✅ Test User Already Set Up</h3>
+                        <p><strong>Email:</strong> ${user.email}</p>
+                        <p><strong>Name:</strong> ${user.name}</p>
+                        <p><strong>Role:</strong> ${user.role}</p>
+                        <p>You can proceed to your SwasthyaLink application.</p>
+                    </div>
+                `;
+            }
+        };
+    </script>
+</body>
+</html>
+
+
+
+
+
+

@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "swasthyalink-frontend": "file:.."
+  }
+}

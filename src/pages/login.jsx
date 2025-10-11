@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { auth, googleProvider, db } from "../firebaseConfig";
-import { signInWithPopup, signInWithRedirect, getRedirectResult, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, sendPasswordResetEmail, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import authService from "../services/authService";
 import { ERROR_MESSAGES } from "../constants";
@@ -52,88 +52,207 @@ const Login = () => {
     };
   }, []);
 
-  // Note: Using popup method now, so no need for redirect result handling
+  // Handle redirect result for fallback authentication
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      console.log("🔄 Checking for redirect sign-in result...");
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log("✅ Google redirect sign-in successful:", result);
+          const user = result.user;
+
+          // Check if this is an admin user (same logic as popup method)
+          const adminEmails = [
+            "admin@gmail.com",
+            "admin@swasthyalink.com",
+            "administrator@swasthyalink.com"
+          ];
+
+          const isAdminEmail = adminEmails.includes(user.email.toLowerCase()) ||
+                              user.email.toLowerCase().includes('admin');
+
+          if (isAdminEmail) {
+            console.log("Admin user detected via Google redirect:", user.email);
+            setPresetAdmin(true);
+            navigate("/admindashboard");
+            return;
+          }
+
+          // Continue with normal user flow...
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            console.log("Existing user data (redirect):", userData);
+            if (userData.role === "doctor") {
+              navigate("/doctordashboard");
+            } else if (userData.role === "patient") {
+              navigate("/patientdashboard");
+            } else if (userData.role === "family") {
+              navigate("/familydashboard");
+            } else {
+              navigate("/patientdashboard"); // Default to patient dashboard
+            }
+          } else {
+            // New user, create user document and redirect to patient dashboard
+            console.log("New user detected (redirect), creating user document...");
+            try {
+              const userData = {
+                uid: user.uid,
+                name: user.displayName || 'Unknown User',
+                email: user.email,
+                role: "patient", // Default role for Google sign-in users
+                createdAt: new Date().toISOString(),
+                lastActive: new Date().toISOString(),
+                emailVerified: user.emailVerified,
+                photoURL: user.photoURL || null
+              };
+              
+              await setDoc(userDocRef, userData);
+              console.log("✅ User document created successfully (redirect)");
+              navigate("/patientdashboard");
+            } catch (createError) {
+              console.error("❌ Error creating user document (redirect):", createError);
+              setError("Failed to create user profile. Please try again.");
+            }
+          }
+        } else {
+          console.log("ℹ️ No redirect sign-in result found.");
+        }
+      } catch (error) {
+        console.error("Redirect result error:", error);
+        setError("Authentication failed. Please try again.");
+      }
+    };
+
+    handleRedirectResult();
+  }, [navigate]);
 
 
 
   const handleGoogleSignIn = async () => {
+    console.log("[DEBUG] Google sign-in button clicked (popup method)");
     setLoading(true);
     setError("");
     try {
-      console.log("🚀 Starting Google sign in with popup method");
-      console.log("📍 Current origin:", window.location.origin);
-      console.log("🔗 Auth domain:", auth.config.authDomain);
-      console.log("🔧 Project ID:", auth.app.options.projectId);
-      console.log("🔑 App ID:", auth.app.options.appId);
-      
-      // Use popup method for more reliable authentication
-      console.log("🪟 Opening Google sign-in popup...");
       const result = await signInWithPopup(auth, googleProvider);
+      console.log("✅ Google popup sign-in successful:", result);
+      
+      // Get the signed-in user
       const user = result.user;
       
-      console.log("✅ Google popup sign in successful!");
-      console.log("👤 User ID:", user.uid);
-      console.log("📧 Email:", user.email);
-      console.log("👤 Display Name:", user.displayName);
+      // Check if this is an admin user
+      const adminEmails = [
+        "admin@gmail.com",
+        "admin@swasthyalink.com",
+        "administrator@swasthyalink.com"
+      ];
       
-      // Preset admin check for Google sign-in
-      if (user.email === "admin@gmail.com") {
-        console.log("Admin user detected, redirecting to admin dashboard");
+      const isAdminEmail = adminEmails.includes(user.email.toLowerCase()) ||
+                          user.email.toLowerCase().includes('admin');
+      
+      if (isAdminEmail) {
+        console.log("Admin user detected via Google popup:", user.email);
         setPresetAdmin(true);
         navigate("/admindashboard");
         return;
       }
       
-      // Fetch user data from Firestore
-      console.log("🔍 Checking if user exists in Firestore");
-      console.log("🔗 Database instance:", db);
-      console.log("📄 User document path:", `users/${user.uid}`);
-      
+      // Check if user exists in Firestore
       const userDocRef = doc(db, "users", user.uid);
-      console.log("📄 Document reference:", userDocRef);
-      
-      console.log("📖 Attempting to read user document...");
       const userDocSnap = await getDoc(userDocRef);
-      console.log("📖 Document snapshot:", userDocSnap);
       
       if (userDocSnap.exists()) {
-        console.log("✅ User found in Firestore:", userDocSnap.data());
-        console.log("🚀 Navigating to patient dashboard...");
-        navigate("/patientdashboard");
+        // User exists, navigate based on role
+        const userData = userDocSnap.data();
+        console.log("Existing user data:", userData);
+        if (userData.role === "doctor") {
+          navigate("/doctordashboard");
+        } else if (userData.role === "patient") {
+          navigate("/patientdashboard");
+        } else if (userData.role === "family") {
+          navigate("/familydashboard");
+        } else {
+          navigate("/patientdashboard"); // Default to patient dashboard
+        }
       } else {
-        console.log("➕ User not found in Firestore, creating new user document");
+        // New user, create user document and redirect to patient dashboard
+        console.log("New user detected, creating user document...");
         try {
           const userData = {
             uid: user.uid,
-            name: user.displayName,
+            name: user.displayName || 'Unknown User',
             email: user.email,
-            role: "patient",
-            createdAt: new Date().toISOString()
+            role: "patient", // Default role for Google sign-in users
+            createdAt: new Date().toISOString(),
+            lastActive: new Date().toISOString(),
+            emailVerified: user.emailVerified,
+            photoURL: user.photoURL || null
           };
           
-          console.log("💾 Saving user data to Firestore:", userData);
-          await setDoc(doc(db, "users", user.uid), userData);
-          console.log("✅ User data successfully saved to Firestore");
-          console.log("🚀 Navigating to patient dashboard...");
+          await setDoc(userDocRef, userData);
+          console.log("✅ User document created successfully");
           navigate("/patientdashboard");
-        } catch (firestoreError) {
-          console.error("❌ Error saving to Firestore:", firestoreError);
+        } catch (createError) {
+          console.error("❌ Error creating user document:", createError);
           setError("Failed to create user profile. Please try again.");
         }
       }
     } catch (err) {
-      console.error("❌ Google sign-in popup failed:", err);
-      console.error("Error code:", err.code);
-      console.error("Error message:", err.message);
+      console.error("[ERROR] Google sign-in (popup) failed:", err);
       
+      // Handle specific Google Auth errors
       if (err.code === 'auth/popup-closed-by-user') {
         setError("Sign-in was cancelled. Please try again.");
       } else if (err.code === 'auth/popup-blocked') {
-        setError("Popup was blocked by browser. Please allow popups and try again.");
+        setError("Popup was blocked by your browser. Please allow popups and try again.");
+      } else if (err.code === 'auth/network-request-failed') {
+        setError("Network error. Please check your connection and try again.");
       } else {
-        setError(`Google sign-in failed: ${err.message}`);
+        setError(`Google sign-in failed: ${err.message}. Please try again.`);
       }
+    } finally {
       setLoading(false);
+    }
+  };
+
+  const createTestUserAccount = async (testUser) => {
+    try {
+      // Create user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, testUser.email, testUser.password);
+      const user = userCredential.user;
+      
+      console.log(`✅ Test user created: ${user.uid}`);
+      
+      // Create user document in Firestore
+      const userData = {
+        uid: user.uid,
+        name: testUser.role === 'doctor' ? 'Dr. Test Doctor' : 
+              testUser.role === 'patient' ? 'Test Patient' : 'Test Family Member',
+        email: user.email,
+        role: testUser.role,
+        createdAt: new Date().toISOString(),
+        lastActive: new Date().toISOString(),
+        emailVerified: user.emailVerified,
+        photoURL: user.photoURL || null
+      };
+      
+      await setDoc(doc(db, "users", user.uid), userData);
+      console.log(`✅ User document created in Firestore for ${testUser.role}`);
+      
+      return user;
+    } catch (error) {
+      if (error.code === 'auth/email-already-in-use') {
+        console.log(`User ${testUser.email} already exists, signing in instead`);
+        // User already exists, sign them in
+        const userCredential = await signInWithEmailAndPassword(auth, testUser.email, testUser.password);
+        return userCredential.user;
+      } else {
+        console.error('Error creating test user:', error);
+        throw error;
+      }
     }
   };
 
@@ -161,20 +280,26 @@ const Login = () => {
 
     // Additional test credentials for demo purposes
     const testCredentials = [
-      { email: "test@swasthyalink.com", password: "test123", role: "patient", redirect: "/dashboard" },
-      { email: "doctor@swasthyalink.com", password: "doctor123", role: "doctor", redirect: "/doctordashboard" },
-      { email: "family@swasthyalink.com", password: "family123", role: "family", redirect: "/familydashboard" }
+      { email: "test@swasthyakink.com", password: "test123", role: "patient", redirect: "/patientdashboard" },
+      { email: "doctor@swasthyakink.com", password: "doctor123", role: "doctor", redirect: "/doctordashboard" },
+      { email: "family@swasthyakink.com", password: "family123", role: "family", redirect: "/familydashboard" },
+      { email: "doctor1758796374014@swasthyakink.com", password: "Doc374014!", role: "doctor", redirect: "/doctordashboard" }
     ];
 
     const testUser = testCredentials.find(cred => cred.email === email && cred.password === password);
     if (testUser) {
-      console.log(`Test ${testUser.role} credentials detected, redirecting to ${testUser.redirect}`);
+      console.log(`Test ${testUser.role} credentials detected, creating account and redirecting to ${testUser.redirect}`);
       setLoading(false);
+      
       try {
+        // Create the test user account in Firebase Authentication
+        await createTestUserAccount(testUser);
         navigate(testUser.redirect);
         console.log(`Navigation to ${testUser.redirect} completed`);
       } catch (error) {
-        console.error("Navigation error:", error);
+        console.error("Error creating test user or navigation:", error);
+        setError("Failed to create test account. Please try again.");
+        setLoading(false);
       }
       return;
     }
@@ -420,7 +545,10 @@ const Login = () => {
             {/* Google Sign-In */}
             {!showForgotPassword && (
               <button
-                onClick={handleGoogleSignIn}
+                onClick={() => {
+                  console.log("[DEBUG] Google sign-in button onClick fired");
+                  handleGoogleSignIn();
+                }}
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 py-2 rounded-lg font-medium text-base shadow hover:bg-indigo-50 hover:text-indigo-700 transition-colors duration-200 mb-6"
               >
@@ -573,17 +701,24 @@ const Login = () => {
                   <span className="font-medium">Admin:</span>
                   <span>admin@gmail.com / admin123</span>
                 </div>
+                <div className="text-xs text-blue-600 bg-blue-100 p-2 rounded mt-1">
+                  💡 <strong>Google Sign-In for Admins:</strong> Use any Gmail account with "admin" in the email or the specific admin emails above
+                </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Patient:</span>
-                  <span>test@swasthyalink.com / test123</span>
+                  <span>test@swasthyakink.com / test123</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Doctor:</span>
-                  <span>doctor@swasthyalink.com / doctor123</span>
+                  <span>doctor@swasthyakink.com / doctor123</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Family:</span>
-                  <span>family@swasthyalink.com / family123</span>
+                  <span>family@swasthyakink.com / family123</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Test Doctor:</span>
+                  <span>doctor1758796374014@swasthyakink.com / Doc374014!</span>
                 </div>
 
                 {/* Show admin-created doctors if any exist */}
@@ -675,6 +810,8 @@ const Login = () => {
           </aside>
         </div>
       </div>
+
+
     </main>
   );
 };

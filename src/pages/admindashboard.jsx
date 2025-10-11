@@ -10,6 +10,7 @@ const AdminDashboard = () => {
   const [doctors, setDoctors] = useState([]);
   const [staff, setStaff] = useState([]);
   const [pharmacy, setPharmacy] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -254,6 +255,17 @@ const AdminDashboard = () => {
         const pharmacyData = pharmacySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPharmacy(pharmacyData);
 
+        // Fetch all users for user management
+        const usersSnapshot = await getDocs(collection(db, "users"));
+        const usersData = usersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          authMethod: doc.data().uid ? 'Google' : 'Email',
+          createdAt: doc.data().createdAt || 'Unknown'
+        }));
+        console.log("Fetched all users from Firestore:", usersData);
+        setUsers(usersData);
+
         setStorageMode('firestore');
 
       } else if (isPresetAdmin) {
@@ -265,12 +277,21 @@ const AdminDashboard = () => {
         const mockPharmacy = JSON.parse(localStorage.getItem('mockPharmacy') || '[]');
         const mockPatients = JSON.parse(localStorage.getItem('mockPatients') || '[]');
 
+        // Combine all users for user management view
+        const allUsers = [
+          ...mockDoctors.map(d => ({ ...d, role: 'doctor', authMethod: 'Local', createdAt: 'Demo' })),
+          ...mockPatients.map(p => ({ ...p, role: 'patient', authMethod: 'Local', createdAt: 'Demo' })),
+          ...mockStaff.map(s => ({ ...s, role: 'staff', authMethod: 'Local', createdAt: 'Demo' }))
+        ];
+
         console.log("Loaded mock doctors:", mockDoctors);
         console.log("Loaded mock patients:", mockPatients);
+        console.log("Combined users for management:", allUsers);
         setDoctors(mockDoctors);
         setStaff(mockStaff);
         setPharmacy(mockPharmacy);
         setPatients(mockPatients);
+        setUsers(allUsers);
 
         setStorageMode('localStorage');
       } else {
@@ -293,10 +314,18 @@ const AdminDashboard = () => {
         const mockPharmacy = JSON.parse(localStorage.getItem('mockPharmacy') || '[]');
         const mockPatients = JSON.parse(localStorage.getItem('mockPatients') || '[]');
 
+        // Combine all users for user management view
+        const allUsers = [
+          ...mockDoctors.map(d => ({ ...d, role: 'doctor', authMethod: 'Local', createdAt: 'Demo' })),
+          ...mockPatients.map(p => ({ ...p, role: 'patient', authMethod: 'Local', createdAt: 'Demo' })),
+          ...mockStaff.map(s => ({ ...s, role: 'staff', authMethod: 'Local', createdAt: 'Demo' }))
+        ];
+
         setDoctors(mockDoctors);
         setStaff(mockStaff);
         setPharmacy(mockPharmacy);
         setPatients(mockPatients);
+        setUsers(allUsers);
         setStorageMode('localStorage');
       }
     } finally {
@@ -776,6 +805,7 @@ const AdminDashboard = () => {
           <nav className="mt-8">
             {[
               { id: "overview", name: "Overview", icon: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" },
+              { id: "users", name: "Users", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" },
               { id: "doctors", name: "Doctors", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
               { id: "staff", name: "Staff", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" },
               { id: "pharmacy", name: "Pharmacy", icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" }
@@ -924,19 +954,27 @@ const AdminDashboard = () => {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-white capitalize">
+                  {activeTab === "users" && "Manage Users"}
                   {activeTab === "doctors" && "Manage Doctors"}
                   {activeTab === "staff" && "Manage Staff"}
                   {activeTab === "pharmacy" && "Manage Pharmacy"}
                 </h2>
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  <span>Add {activeTab.slice(0, -1)}</span>
-                </button>
+                {activeTab !== "users" && (
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span>Add {activeTab.slice(0, -1)}</span>
+                  </button>
+                )}
+                {activeTab === "users" && (
+                  <div className="text-gray-400 text-sm">
+                    Users register automatically through the login system
+                  </div>
+                )}
               </div>
 
               <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden">
@@ -944,6 +982,16 @@ const AdminDashboard = () => {
                   <table className="min-w-full divide-y divide-gray-700">
                     <thead className="bg-gray-700">
                       <tr>
+                        {activeTab === "users" && (
+                          <>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Name</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Role</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Auth Method</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Created</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                          </>
+                        )}
                         {activeTab === "doctors" && (
                           <>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Name</th>
@@ -976,6 +1024,59 @@ const AdminDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-gray-800 divide-y divide-gray-700">
+                      {activeTab === "users" && users.map((user) => (
+                        <tr key={user.id} className="hover:bg-gray-700">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                            {user.name || user.displayName || 'Unknown'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            {user.email}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              user.role === 'admin' ? 'bg-red-100 text-red-800' :
+                              user.role === 'doctor' ? 'bg-blue-100 text-blue-800' :
+                              user.role === 'patient' ? 'bg-green-100 text-green-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {user.role || 'patient'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              user.authMethod === 'Google' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {user.authMethod}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            {user.createdAt && user.createdAt !== 'Demo' && user.createdAt !== 'Unknown'
+                              ? new Date(user.createdAt).toLocaleDateString()
+                              : user.createdAt || 'Unknown'
+                            }
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => {
+                                  if (user.role === 'doctor') {
+                                    setActiveTab('doctors');
+                                  } else if (user.role === 'patient') {
+                                    // Could navigate to patient management if implemented
+                                    alert(`Patient management for ${user.name || user.email} - Feature coming soon!`);
+                                  } else {
+                                    alert(`User details for ${user.name || user.email} - Feature coming soon!`);
+                                  }
+                                }}
+                                className="text-blue-400 hover:text-blue-300 font-medium"
+                              >
+                                View Details
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                       {activeTab === "doctors" && doctors.map((doctor) => (
                         <tr key={doctor.id} className="hover:bg-gray-700">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{doctor.name}</td>

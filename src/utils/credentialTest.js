@@ -57,7 +57,8 @@ export const validateCredentials = (email, password) => {
   }
 
   const timestamp = emailMatch[1];
-  const expectedPassword = `Doc${timestamp.slice(-6)}!`;
+  // Fix: Remove the exclamation mark from the expected password format
+  const expectedPassword = `Doc${timestamp.slice(-6)}`;
 
   console.log("🔧 Validation details:");
   console.log("  Extracted timestamp:", timestamp);
