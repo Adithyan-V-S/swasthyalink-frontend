@@ -146,8 +146,8 @@ const EnhancedNotificationCenter = () => {
       <div
         key={notification.id}
         onClick={() => handleNotificationClick(notification)}
-        className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-          !notification.read ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+        className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors rounded-lg mx-1 my-1 ${
+          !notification.read ? 'bg-blue-50 border-l-4 border-blue-500' : 'bg-white border border-gray-100'
         }`}
       >
         <div className="flex items-start space-x-3">
@@ -156,11 +156,11 @@ const EnhancedNotificationCenter = () => {
           </div>
           
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <h4 className={`text-sm font-medium ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}>
+            <div className="flex items-start justify-between">
+              <h4 className={`text-sm font-medium leading-tight ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}>
                 {notification.title}
               </h4>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 ml-2 flex-shrink-0">
                 <span className="text-xs text-gray-500">{timeAgo}</span>
                 {!notification.read && (
                   <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -168,15 +168,15 @@ const EnhancedNotificationCenter = () => {
               </div>
             </div>
             
-            <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+            <p className="text-sm text-gray-600 mt-1 leading-relaxed break-words">
               {notification.message}
             </p>
             
             {notification.priority === 'urgent' && (
               <div className="mt-2">
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200 animate-pulse">
                   <span className="material-icons text-xs mr-1">priority_high</span>
-                  Urgent
+                  URGENT
                 </span>
               </div>
             )}
@@ -204,7 +204,7 @@ const EnhancedNotificationCenter = () => {
       >
         <span className="material-icons">notifications</span>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold animate-pulse shadow-lg">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -212,7 +212,7 @@ const EnhancedNotificationCenter = () => {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-h-[600px] overflow-hidden">
+        <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 h-[500px] flex flex-col transform transition-all duration-200 ease-out">
           {/* Header */}
           <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-blue-50">
             <div className="flex items-center justify-between">
@@ -237,8 +237,8 @@ const EnhancedNotificationCenter = () => {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200 bg-gray-50">
+          {/* Tabs - Fixed at top */}
+          <div className="flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
             {[
               { key: 'all', label: 'All', icon: 'notifications' },
               { key: 'unread', label: 'Unread', icon: 'mark_email_unread' },
@@ -251,17 +251,17 @@ const EnhancedNotificationCenter = () => {
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors relative ${
+                  className={`flex-1 px-4 py-3 text-xs font-medium transition-colors relative ${
                     activeTab === tab.key
                       ? 'text-indigo-600 border-b-2 border-indigo-500 bg-white'
-                      : 'text-gray-600 hover:text-gray-900'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
                   <div className="flex items-center justify-center space-x-1">
                     <span className="material-icons text-sm">{tab.icon}</span>
                     <span>{tab.label}</span>
                     {count > 0 && (
-                      <span className="bg-red-500 text-white text-xs rounded-full px-1 min-w-[16px] h-4 flex items-center justify-center">
+                      <span className="bg-red-500 text-white text-xs rounded-full px-1.5 min-w-[18px] h-5 flex items-center justify-center font-bold">
                         {count > 9 ? '9+' : count}
                       </span>
                     )}
@@ -271,8 +271,8 @@ const EnhancedNotificationCenter = () => {
             })}
           </div>
 
-          {/* Notifications List */}
-          <div className="max-h-96 overflow-y-auto">
+          {/* Notifications List - Fixed height with independent scrolling */}
+          <div className="flex-1 overflow-hidden">
             {loading ? (
               <div className="p-8 text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
@@ -288,21 +288,23 @@ const EnhancedNotificationCenter = () => {
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
-                {filteredNotifications.map(renderNotification)}
+              <div className="h-full overflow-y-auto">
+                <div className="space-y-1 p-2">
+                  {filteredNotifications.map(renderNotification)}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Footer */}
+          {/* Footer - Fixed at bottom */}
           {filteredNotifications.length > 0 && (
-            <div className="p-3 border-t border-gray-200 bg-gray-50">
+            <div className="p-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex-shrink-0">
               <button
                 onClick={() => {
                   navigate('/familydashboard');
                   setIsOpen(false);
                 }}
-                className="w-full text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                className="w-full text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium py-2 px-4 rounded-lg hover:bg-indigo-50 transition-colors"
               >
                 View all in dashboard
               </button>

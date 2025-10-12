@@ -360,16 +360,35 @@ export const getNotificationColor = (priority) => {
 
 // Format notification time
 export const formatNotificationTime = (timestamp) => {
-  if (!timestamp) return '';
+  if (!timestamp) return 'Just now';
   
-  const now = new Date();
-  const notificationTime = timestamp instanceof Date ? timestamp : new Date(timestamp);
-  const diffInMinutes = Math.floor((now - notificationTime) / (1000 * 60));
-  
-  if (diffInMinutes < 1) return 'Just now';
-  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-  if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
-  if (diffInMinutes < 10080) return `${Math.floor(diffInMinutes / 1440)}d ago`;
-  
-  return notificationTime.toLocaleDateString();
+  try {
+    const now = new Date();
+    let notificationTime;
+    
+    if (timestamp instanceof Date) {
+      notificationTime = timestamp;
+    } else if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+      notificationTime = new Date(timestamp);
+    } else {
+      return 'Just now';
+    }
+    
+    // Check if the date is valid
+    if (isNaN(notificationTime.getTime())) {
+      return 'Just now';
+    }
+    
+    const diffInMinutes = Math.floor((now - notificationTime) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    if (diffInMinutes < 10080) return `${Math.floor(diffInMinutes / 1440)}d ago`;
+    
+    return notificationTime.toLocaleDateString();
+  } catch (error) {
+    console.warn('Error formatting notification time:', error);
+    return 'Just now';
+  }
 };

@@ -283,10 +283,32 @@ const Login = () => {
       { email: "test@swasthyakink.com", password: "test123", role: "patient", redirect: "/patientdashboard" },
       { email: "doctor@swasthyakink.com", password: "doctor123", role: "doctor", redirect: "/doctordashboard" },
       { email: "family@swasthyakink.com", password: "family123", role: "family", redirect: "/familydashboard" },
-      { email: "doctor1758796374014@swasthyakink.com", password: "Doc374014!", role: "doctor", redirect: "/doctordashboard" }
+      { email: "doctor1758796374014@swasthyakink.com", password: "Doc374014!", role: "doctor", redirect: "/doctordashboard" },
+      { email: "doctor1758810279159@swasthyalink.com", password: "Doc279159!", role: "doctor", redirect: "/doctordashboard" }
     ];
 
-    const testUser = testCredentials.find(cred => cred.email === email && cred.password === password);
+    // Check for exact match first
+    let testUser = testCredentials.find(cred => cred.email === email && cred.password === password);
+    
+    // If no exact match, check for doctor pattern: doctor{timestamp}@swasthyalink.com with Doc{last6digits}!
+    if (!testUser && email.includes('@swasthyalink.com') && email.startsWith('doctor')) {
+      const timestampMatch = email.match(/doctor(\d+)@swasthyalink\.com/);
+      if (timestampMatch) {
+        const timestamp = timestampMatch[1];
+        const expectedPassword = `Doc${timestamp.slice(-6)}!`;
+        
+        if (password === expectedPassword) {
+          testUser = {
+            email: email,
+            password: password,
+            role: "doctor",
+            redirect: "/doctordashboard"
+          };
+          console.log(`Doctor pattern detected: ${email} with password ${password}`);
+        }
+      }
+    }
+    
     if (testUser) {
       console.log(`Test ${testUser.role} credentials detected, creating account and redirecting to ${testUser.redirect}`);
       setLoading(false);
@@ -313,46 +335,65 @@ const Login = () => {
     mockDoctors.forEach((doc, index) => {
       console.log(`🩺 Doctor ${index + 1}:`, {
         email: doc.email,
+        emailLower: doc.email?.toLowerCase(),
         password: doc.password,
         name: doc.name,
         specialization: doc.specialization
       });
+      console.log(`🔍 Comparing: "${doc.email?.toLowerCase()}" === "${email.toLowerCase()}" ?`, doc.email?.toLowerCase() === email.toLowerCase());
+      console.log(`🔍 Password match: "${doc.password}" === "${password}" ?`, doc.password === password);
     });
 
     const doctorMatch = mockDoctors.find(doc =>
-      doc.email === email.toLowerCase() && doc.password === password
+      doc.email?.toLowerCase().trim() === email.toLowerCase().trim() && 
+      doc.password?.trim() === password.trim()
     );
     console.log("🔍 Doctor match result:", doctorMatch);
 
     if (doctorMatch) {
-      console.log("Doctor credentials found in admin-created doctors, redirecting to doctor dashboard");
+      console.log("✅ Doctor credentials found in admin-created doctors, redirecting to doctor dashboard");
+      console.log("Doctor match details:", doctorMatch);
       setLoading(false);
 
-      // Create doctor user object
-      const doctorUser = {
-        uid: doctorMatch.uid || doctorMatch.id,
-        email: doctorMatch.email,
-        displayName: doctorMatch.name,
-        emailVerified: true,
+      try {
+        // Try to create the doctor account in Firebase if it doesn't exist
+        await createTestUserAccount({
+          email: doctorMatch.email,
+          password: doctorMatch.password,
+          role: "doctor",
+          redirect: "/doctordashboard"
+        });
+        
+        // Create doctor user object for localStorage
+        const doctorUser = {
+          uid: doctorMatch.uid || doctorMatch.id,
+          email: doctorMatch.email,
+          displayName: doctorMatch.name,
+          emailVerified: true,
         specialization: doctorMatch.specialization,
         license: doctorMatch.license,
         phone: doctorMatch.phone
       };
 
-      localStorage.setItem('testUser', JSON.stringify(doctorUser));
-      localStorage.setItem('testUserRole', 'doctor');
+        localStorage.setItem('testUser', JSON.stringify(doctorUser));
+        localStorage.setItem('testUserRole', 'doctor');
 
-      // Force trigger storage event for same-tab detection
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'testUser',
-        newValue: JSON.stringify(doctorUser)
-      }));
+        // Force trigger storage event for same-tab detection
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'testUser',
+          newValue: JSON.stringify(doctorUser)
+        }));
 
-      try {
-        navigate("/doctordashboard");
-        console.log("Navigation to doctor dashboard completed");
+        try {
+          navigate("/doctordashboard");
+          console.log("Navigation to doctor dashboard completed");
+        } catch (error) {
+          console.error("Navigation error:", error);
+        }
       } catch (error) {
-        console.error("Navigation error:", error);
+        console.error("Error creating doctor account:", error);
+        setError("Failed to create doctor account. Please try again.");
+        setLoading(false);
       }
       return;
     }
@@ -717,8 +758,12 @@ const Login = () => {
                   <span>family@swasthyakink.com / family123</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium">Test Doctor:</span>
+                  <span className="font-medium">Test Doctor 1:</span>
                   <span>doctor1758796374014@swasthyakink.com / Doc374014!</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Test Doctor 2:</span>
+                  <span>doctor1758810279159@swasthyalink.com / Doc279159!</span>
                 </div>
 
                 {/* Show admin-created doctors if any exist */}

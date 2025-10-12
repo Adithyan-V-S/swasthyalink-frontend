@@ -27,29 +27,52 @@ const DoctorPrescriptions = () => {
   const loadConnectedPatients = async () => {
     try {
       setIsLoading(true);
-      // For now, use mock data - in real app, this would fetch from backend
-      setConnectedPatients([
-        {
-          id: "patient1",
-          name: "John Smith",
-          email: "john.smith@example.com",
-          age: 45,
-          gender: "Male",
-          bloodType: "O+",
-          allergies: ["Penicillin"],
-          lastVisit: "2024-01-15"
-        },
-        {
-          id: "patient2", 
-          name: "Sarah Johnson",
-          email: "sarah.johnson@example.com",
-          age: 32,
-          gender: "Female",
-          bloodType: "A-",
-          allergies: ["Shellfish"],
-          lastVisit: "2024-01-10"
-        }
-      ]);
+      // Check if this is a test user
+      const isTestUser = localStorage.getItem('testUser') !== null;
+      
+      if (isTestUser) {
+        // Use mock data for test users
+        setConnectedPatients([
+          {
+            id: "patient1",
+            name: "John Smith",
+            email: "john.smith@example.com",
+            age: 45,
+            gender: "Male",
+            bloodType: "O+",
+            allergies: ["Penicillin"],
+            lastVisit: "2024-01-15"
+          },
+          {
+            id: "patient2", 
+            name: "Sarah Johnson",
+            email: "sarah.johnson@example.com",
+            age: 32,
+            gender: "Female",
+            bloodType: "A-",
+            allergies: ["Shellfish"],
+            lastVisit: "2024-01-10"
+          }
+        ]);
+        return;
+      }
+      
+      // For real users, fetch from backend
+      const response = await getConnectedDoctors();
+      if (response && response.success) {
+        // Transform the response to match our expected format
+        const patients = response.doctors.map(patient => ({
+          id: patient.id,
+          name: patient.name,
+          email: patient.email,
+          age: patient.age || 'Not specified',
+          gender: patient.gender || 'Not specified',
+          bloodType: patient.bloodType || 'Not specified',
+          allergies: patient.allergies || [],
+          lastVisit: patient.lastVisit || 'Never'
+        }));
+        setConnectedPatients(patients);
+      }
     } catch (error) {
       console.error('Error loading connected patients:', error);
       setNotification('Error loading patients');
@@ -118,18 +141,34 @@ const DoctorPrescriptions = () => {
         id: Date.now().toString(),
         patientId: selectedPatient.id,
         patientName: selectedPatient.name,
+        patientEmail: selectedPatient.email,
         doctorId: currentUser?.uid,
-        doctorName: "Dr. John Smith", // This would come from doctor profile
+        doctorName: currentUser?.name || "Dr. Unknown",
+        doctorEmail: currentUser?.email || "unknown@example.com",
         ...prescription,
         prescribedDate: new Date().toISOString().split('T')[0],
-        status: "Active"
+        status: "Active",
+        createdAt: new Date().toISOString()
       };
 
-      // TODO: Save to backend/Firestore
-      console.log('Saving prescription:', newPrescription);
-      
-      // For now, add to local state
-      setPrescriptions(prev => [newPrescription, ...prev]);
+      // Save to Firestore
+      try {
+        const { addDoc, collection } = await import('firebase/firestore');
+        const { db } = await import('../firebaseConfig');
+        
+        await addDoc(collection(db, 'prescriptions'), newPrescription);
+        console.log('✅ Prescription saved to Firestore:', newPrescription);
+        
+        // Also add to local state for immediate UI update
+        setPrescriptions(prev => [newPrescription, ...prev]);
+        
+        setNotification('Prescription saved successfully!');
+      } catch (firestoreError) {
+        console.error('❌ Error saving prescription to Firestore:', firestoreError);
+        // Still add to local state as fallback
+        setPrescriptions(prev => [newPrescription, ...prev]);
+        setNotification('Prescription saved locally (Firestore error)');
+      }
       
       // Reset form
       setPrescription({
@@ -408,4 +447,6 @@ const DoctorPrescriptions = () => {
 };
 
 export default DoctorPrescriptions;
+
+
 

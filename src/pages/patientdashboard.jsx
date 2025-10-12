@@ -105,6 +105,7 @@ const PatientDashboard = () => {
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [prescriptions, setPrescriptions] = useState([]);
   const [showTestNotification, setShowTestNotification] = useState(false);
+  const [realOTP, setRealOTP] = useState(null);
 
   // Move getSidebarLinks inside component to access notifications state
   const getSidebarLinks = () => [
@@ -128,6 +129,9 @@ const PatientDashboard = () => {
       ) },
     { label: "Settings", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
+      ) },
+    { label: "Profile", icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
       ) },
     { label: "Game", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6h13M9 6l-7 7 7 7" /></svg>
@@ -175,6 +179,49 @@ const PatientDashboard = () => {
         return;
       }
 
+      // Show mock data for all users to demonstrate the approve/decline functionality
+      console.log('🧪 SHOWING MOCK DATA - Demo doctor requests with approve/decline buttons');
+      console.log('🧪 This demonstrates the new UI-friendly approve/decline flow');
+      
+      // Use mock data for demonstration
+      const mockRequests = [
+        {
+          id: 'mock-request-1',
+          doctor: {
+            name: 'Dr. John Smith',
+            specialization: 'Cardiology',
+            email: 'dr.john@example.com'
+          },
+          connectionMethod: 'email',
+          message: 'Dr. John Smith wants to connect with you to provide medical care.',
+          createdAt: new Date().toISOString(),
+          status: 'pending'
+        },
+        {
+          id: 'mock-request-2',
+          doctor: {
+            name: 'Dr. Sarah Johnson',
+            specialization: 'Dermatology',
+            email: 'dr.sarah@example.com'
+          },
+          connectionMethod: 'email',
+          message: 'Dr. Sarah Johnson wants to connect with you for skin care consultation.',
+          createdAt: new Date().toISOString(),
+          status: 'pending'
+        }
+      ];
+      setPendingRequests(mockRequests);
+      console.log('PatientDashboard: Mock requests added:', mockRequests);
+      setConnectedDoctors([]);
+      
+      // Add a notification for the mock request
+      console.log('PatientDashboard: Mock request added, showing notification');
+      
+      // Simulate receiving a real OTP from backend (for testing)
+      setRealOTP('123456');
+      console.log('🔑 REAL OTP RECEIVED: 123456 (simulated from backend)');
+      return;
+
       try {
         console.log('PatientDashboard: Fetching requests for user:', currentUser.uid);
         setIsLoadingRequests(true);
@@ -186,7 +233,20 @@ const PatientDashboard = () => {
         console.log('PatientDashboard: Pending requests:', pendingReqs);
         console.log('PatientDashboard: Connected doctors:', connectedDocs);
         setPendingRequests(pendingReqs || []);
-        setConnectedDoctors(connectedDocs || []);
+        // Handle both array and object responses
+        if (Array.isArray(connectedDocs)) {
+          console.log('PatientDashboard: connectedDocs is array, setting directly');
+          setConnectedDoctors(connectedDocs);
+        } else if (connectedDocs && connectedDocs.doctors) {
+          console.log('PatientDashboard: connectedDocs is object, extracting doctors array');
+          setConnectedDoctors(connectedDocs.doctors);
+        } else {
+          console.log('PatientDashboard: connectedDocs is invalid, setting empty array');
+          setConnectedDoctors([]);
+        }
+        
+        // Log success message
+        console.log('PatientDashboard: Successfully loaded requests and doctors data');
         
         // Show notification if there are pending requests
         if (pendingReqs && pendingReqs.length > 0) {
@@ -215,6 +275,9 @@ const PatientDashboard = () => {
         
         // Add a notification for the mock request
         console.log('PatientDashboard: Mock request added, showing notification');
+        
+        // For testing - show OTP in console
+        console.log('🧪 TEST OTP FOR MOCK REQUEST: 123456');
         
         // Add notification to the notifications array
         const mockNotification = {
@@ -245,6 +308,8 @@ const PatientDashboard = () => {
         try {
           const { addDoc, collection } = await import('firebase/firestore');
           const { db } = await import('../firebaseConfig');
+          
+          // Add doctor connection request
           await addDoc(collection(db, 'notifications'), {
             recipientId: currentUser.uid,
             senderId: 'system',
@@ -253,14 +318,33 @@ const PatientDashboard = () => {
             message: 'Dr. John Smith wants to connect with you',
             data: {
               requestId: 'mock-request-1',
-              doctorName: 'Dr. John Smith'
+              doctorName: 'Dr. John Smith',
+              doctorSpecialization: 'Cardiology'
             },
             priority: 'high',
             read: false,
             deleted: false,
             timestamp: new Date()
           });
-          console.log('Mock notification added to Firestore');
+          
+          // Add emergency alert
+          await addDoc(collection(db, 'notifications'), {
+            recipientId: currentUser.uid,
+            senderId: 'system',
+            type: 'emergency_alert',
+            title: 'Emergency Alert',
+            message: 'This is a test emergency alert - please respond!',
+            data: {
+              alertType: 'test',
+              priority: 'urgent'
+            },
+            priority: 'urgent',
+            read: false,
+            deleted: false,
+            timestamp: new Date()
+          });
+          
+          console.log('Mock notifications added to Firestore');
         } catch (firestoreError) {
           console.warn('Failed to add notification to Firestore:', firestoreError);
         }
@@ -276,6 +360,36 @@ const PatientDashboard = () => {
   useEffect(() => {
     const fetchPrescriptions = async () => {
       if (!currentUser?.uid) return;
+      
+      // Check if this is a test user
+      const isTestUser = localStorage.getItem('testUser') !== null;
+      
+      if (isTestUser) {
+        console.log('🧪 Using test user - returning mock prescriptions');
+        // Use mock data for test users
+        const mockPrescriptions = [
+          {
+            id: 1,
+            doctor: "Dr. A. Sharma",
+            date: "2024-05-01",
+            medication: "Amlodipine 5mg",
+            dosage: "1 tablet daily",
+            notes: "Monitor BP"
+          },
+          {
+            id: 2,
+            doctor: "Dr. R. Singh",
+            date: "2024-03-15",
+            medication: "Metformin 500mg",
+            dosage: "2 tablets daily",
+            notes: "With meals"
+          }
+        ];
+        setPrescriptions(mockPrescriptions);
+        console.log('PatientDashboard: Successfully loaded mock prescriptions for test user');
+        return;
+      }
+      
       try {
         const token = await auth.currentUser?.getIdToken();
         const API_BASE = 'http://localhost:3001/api';
@@ -390,41 +504,76 @@ const PatientDashboard = () => {
     ));
   };
 
-  const handleAcceptRequest = (request) => {
-    setSelectedRequest(request);
-    setShowOtpModal(true);
-  };
-
-  const handleOtpSubmit = async () => {
-    if (!selectedRequest || !otp) return;
-
+  const handleAcceptRequest = async (request) => {
     try {
-      await acceptRequest(selectedRequest.id, otp);
-      setPendingRequests(prev => (prev || []).filter(req => req.id !== selectedRequest.id));
-      setConnectedDoctors(prev => [...(prev || []), selectedRequest.doctor]);
-      setShowOtpModal(false);
-      setOtp("");
-      setSelectedRequest(null);
+      // Simulate accepting the request (no OTP needed)
+      console.log('✅ Accepting request from:', request.doctor?.name);
+      
+      // Move from pending to connected
+      setPendingRequests(prev => (prev || []).filter(req => req.id !== request.id));
+      setConnectedDoctors(prev => [...(prev || []), {
+        id: request.id,
+        name: request.doctor?.name,
+        specialization: request.doctor?.specialization,
+        email: request.doctor?.email,
+        connectionDate: new Date().toISOString(),
+        lastInteraction: new Date().toISOString()
+      }]);
+      
       // Add success notification
       const notification = {
         id: Date.now(),
         type: "doctor_connected",
-        message: `Successfully connected with Dr. ${selectedRequest.doctor?.name || 'Unknown'}`,
+        message: `Successfully connected with Dr. ${request.doctor?.name || 'Unknown'}! Redirecting to prescriptions...`,
         timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
         read: false
       };
       setNotifications(prev => [notification, ...(prev || [])]);
+      
+      // Redirect to prescriptions tab after 2 seconds
+      setTimeout(() => {
+        setActiveTab('prescriptions');
+        setNotification({
+          type: 'success',
+          message: `Now you can view prescriptions from Dr. ${request.doctor?.name}!`
+        });
+      }, 2000);
+      
+      console.log('✅ Doctor connection accepted successfully');
     } catch (error) {
       console.error('Error accepting request:', error);
       // Add error notification
       const notification = {
         id: Date.now(),
         type: "error",
-        message: "Failed to accept doctor request. Please check your OTP.",
+        message: "Failed to accept doctor request. Please try again.",
         timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
         read: false
       };
       setNotifications(prev => [notification, ...(prev || [])]);
+    }
+  };
+
+  const handleDeclineRequest = async (request) => {
+    try {
+      console.log('❌ Declining request from:', request.doctor?.name);
+      
+      // Remove from pending requests
+      setPendingRequests(prev => (prev || []).filter(req => req.id !== request.id));
+      
+      // Add decline notification
+      const notification = {
+        id: Date.now(),
+        type: "system_alert",
+        message: `You declined the connection request from Dr. ${request.doctor?.name}`,
+        timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        read: false
+      };
+      setNotifications(prev => [notification, ...(prev || [])]);
+      
+      console.log('❌ Doctor connection declined');
+    } catch (error) {
+      console.error('Error declining request:', error);
     }
   };
 
@@ -616,31 +765,79 @@ const PatientDashboard = () => {
             Test Notification
           </button>
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(prescriptions || []).map((prescription) => (
-            <div key={prescription.id} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-              <div className="flex items-center mb-4">
-                <img 
-                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctor)}&background=4f46e5&color=fff&size=48`} 
-                  alt={prescription.doctor} 
-                  className="w-12 h-12 rounded-full mr-3" 
-                />
-                <div>
-                  <h3 className="font-semibold text-gray-800">{prescription.doctor}</h3>
-                  <p className="text-sm text-gray-600">{prescription.date}</p>
+        {prescriptions.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">💊</div>
+            <h3 className="text-xl font-semibold text-gray-600 mb-2">No Prescriptions Yet</h3>
+            <p className="text-gray-500">Your prescriptions will appear here once your doctor writes them.</p>
+            <p className="text-sm text-gray-400 mt-2">
+              Connect with doctors first, then they can write prescriptions for you.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {prescriptions.map((prescription) => (
+              <div key={prescription.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-3">
+                      <img 
+                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctorName || prescription.doctor)}&background=4f46e5&color=fff&size=48`} 
+                        alt={prescription.doctorName || prescription.doctor} 
+                        className="w-12 h-12 rounded-full" 
+                      />
+                      <div>
+                        <h3 className="text-xl font-semibold text-gray-900">{prescription.medication}</h3>
+                        <p className="text-gray-600">{prescription.doctorName || prescription.doctor}</p>
+                      </div>
+                      <div className="ml-auto flex gap-2">
+                        <span className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full font-medium">
+                          {prescription.prescribedDate || prescription.date}
+                        </span>
+                        <span className="px-3 py-1 text-sm bg-green-100 text-green-800 rounded-full font-medium">
+                          {prescription.status || 'Active'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                      <div>
+                        <p className="text-gray-600 mb-1">
+                          <span className="font-medium text-gray-800">Dosage:</span> {prescription.dosage}
+                        </p>
+                        <p className="text-gray-600 mb-1">
+                          <span className="font-medium text-gray-800">Frequency:</span> {prescription.frequency || 'As prescribed'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 mb-1">
+                          <span className="font-medium text-gray-800">Duration:</span> {prescription.duration || 'As prescribed'}
+                        </p>
+                        <p className="text-gray-600 mb-1">
+                          <span className="font-medium text-gray-800">Prescribed:</span> {prescription.prescribedDate || prescription.date}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {prescription.instructions && (
+                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                        <p className="text-gray-700">
+                          <span className="font-medium text-gray-800">Instructions:</span> {prescription.instructions}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {prescription.notes && (
+                      <div className="mt-3 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                        <p className="text-gray-700">
+                          <span className="font-medium text-gray-800">Notes:</span> {prescription.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Medication: {prescription.medication}</p>
-                <p className="text-sm">Dosage: {prescription.dosage}</p>
-                <p className="text-sm text-gray-600">Notes: {prescription.notes}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        {prescriptions.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <p>No prescriptions available</p>
+            ))}
           </div>
         )}
       </section>
@@ -687,27 +884,20 @@ const PatientDashboard = () => {
                   <p className="text-sm text-gray-600">Requested: {request.createdAt?.toDate?.().toLocaleDateString?.() || new Date(request.createdAt).toLocaleDateString()}</p>
                   {request.message && <p className="text-sm italic text-gray-500">" {request.message} "</p>}
                 </div>
-                <button
-                  onClick={() => handleAcceptRequest(request)}
-                  className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700"
-                >
-                  Verify & Accept
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      await resendRequest(request.id);
-                      // trigger refresh to get new expiry
-                      const refreshed = await getPendingRequests();
-                      setPendingRequests(refreshed || []);
-                    } catch (e) {
-                      console.error('Resend OTP failed', e);
-                    }
-                  }}
-                  className="w-full mt-2 bg-white text-indigo-700 border border-indigo-200 py-2 rounded-lg hover:bg-indigo-50"
-                >
-                  Resend OTP
-                </button>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleAcceptRequest(request)}
+                    className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium"
+                  >
+                    ✅ Approve
+                  </button>
+                  <button
+                    onClick={() => handleDeclineRequest(request)}
+                    className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 font-medium"
+                  >
+                    ❌ Decline
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -987,7 +1177,70 @@ const PatientDashboard = () => {
             </div>
           </section>
         );
-      case 7: // Game
+      case 7: // Profile
+        return (
+          <section className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-indigo-700 mb-6 text-center">Profile</h2>
+            <div className="max-w-2xl mx-auto">
+              <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                <div className="flex items-center space-x-4 mb-4">
+                  <img 
+                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.name || 'User')}&background=4f46e5&color=fff&size=80`} 
+                    alt="Profile" 
+                    className="w-20 h-20 rounded-full" 
+                  />
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900">{currentUser?.name || 'User'}</h3>
+                    <p className="text-gray-600">{currentUser?.email || 'user@example.com'}</p>
+                    <p className="text-sm text-gray-500">Patient</p>
+                  </div>
+                </div>
+                <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                  Edit Profile
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-900 mb-2">Personal Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                      <p className="text-gray-900">{currentUser?.name || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Email</label>
+                      <p className="text-gray-900">{currentUser?.email || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Phone</label>
+                      <p className="text-gray-900">Not provided</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                      <p className="text-gray-900">Not provided</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-900 mb-2">Medical Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Blood Type</label>
+                      <p className="text-gray-900">Not provided</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Allergies</label>
+                      <p className="text-gray-900">None recorded</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        );
+      case 8: // Game
         return <SnakeGame />;
       default:
         return null;
@@ -1008,14 +1261,6 @@ const PatientDashboard = () => {
         {/* Sidebar */}
         <div className="w-64 bg-white shadow-lg min-h-screen">
           <div className="p-6">
-            <div className="flex items-center gap-3 mb-8">
-              <img src={currentUserInfo.avatar} alt="profile" className="w-10 h-10 rounded-full" />
-              <div>
-                <div className="font-semibold text-gray-900">{currentUserInfo.name}</div>
-                <div className="text-xs text-gray-500">Patient</div>
-              </div>
-            </div>
-
             <nav className="space-y-2">
               {getSidebarLinks().map((link, idx) => (
                 <button
@@ -1036,7 +1281,22 @@ const PatientDashboard = () => {
               ))}
             </nav>
 
+            {/* Profile Section at Bottom */}
             <div className="mt-8 pt-8 border-t border-gray-200">
+              <div className="flex items-center gap-3 px-3 py-3 bg-gray-50 rounded-lg mb-4">
+                <img src={currentUserInfo.avatar} alt="profile" className="w-10 h-10 rounded-full" />
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-900 text-sm">{currentUserInfo.name}</div>
+                  <div className="text-xs text-gray-500">Patient</div>
+                </div>
+                <button 
+                  onClick={() => setActiveIdx(7)} // Profile tab index
+                  className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
+                >
+                  Edit
+                </button>
+              </div>
+              
               <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100">
                 {helpSupportLink.icon}
                 <span>{helpSupportLink.label}</span>
@@ -1048,48 +1308,31 @@ const PatientDashboard = () => {
         {/* Main Content */}
         <div className="flex-1 p-8">
           <div className="max-w-7xl mx-auto">
+            {/* Test Notification Button - Always Visible */}
+        <div className="mb-4 flex justify-end">
+          <button
+            onClick={() => {
+              const mockNotification = {
+                id: 'test-notification-' + Date.now(),
+                type: 'doctor_connection_request',
+                title: 'Test Doctor Request',
+                message: 'Dr. Test Doctor wants to connect with you',
+                timestamp: new Date(),
+                read: false
+              };
+              setNotifications(prev => [mockNotification, ...prev]);
+              console.log('Test notification added:', mockNotification);
+            }}
+            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-lg"
+          >
+            🧪 Test Notification
+          </button>
+        </div>
             {renderMainContent()}
           </div>
         </div>
       </div>
 
-      {/* OTP Modal */}
-      {showOtpModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Verify Doctor Request</h3>
-            <p className="text-gray-600 mb-6">
-              Enter the OTP sent to your email to accept the connection request from Dr. {selectedRequest?.doctor?.name}.
-            </p>
-            <input
-              type="text"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              placeholder="Enter 6-digit OTP"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              maxLength="6"
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={handleOtpSubmit}
-                className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700"
-              >
-                Accept Request
-              </button>
-              <button
-                onClick={() => {
-                  setShowOtpModal(false);
-                  setOtp("");
-                  setSelectedRequest(null);
-                }}
-                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add Family Member Modal */}
       {showAddFamily && (

@@ -10,6 +10,31 @@ const API_BASE = 'http://localhost:3001/api/patient-doctor';
  */
 export const searchPatients = async (query) => {
   try {
+    // Check if this is a test user
+    const isTestUser = localStorage.getItem('testUser') !== null;
+    
+    if (isTestUser) {
+      console.log('🧪 Using test user - returning mock search results');
+      // Return mock data for test users
+      return {
+        success: true,
+        patients: [
+          {
+            id: 'test-patient-1',
+            name: 'Test Patient 1',
+            email: 'patient1@example.com',
+            phone: '+1234567890'
+          },
+          {
+            id: 'test-patient-2', 
+            name: 'Test Patient 2',
+            email: 'patient2@example.com',
+            phone: '+1234567891'
+          }
+        ]
+      };
+    }
+    
     const auth = getAuth();
     const currentUser = auth.currentUser;
     
@@ -60,6 +85,19 @@ export const searchPatients = async (query) => {
  */
 export const createConnectionRequest = async (requestData) => {
   try {
+    // Check if this is a test user
+    const isTestUser = localStorage.getItem('testUser') !== null;
+    
+    if (isTestUser) {
+      console.log('🧪 Using test user - simulating connection request');
+      // Simulate successful connection request for test users
+      return {
+        success: true,
+        message: 'Connection request sent successfully (test mode)',
+        requestId: 'test-request-' + Date.now()
+      };
+    }
+    
     const auth = getAuth();
     const currentUser = auth.currentUser;
     
@@ -112,6 +150,17 @@ export const createConnectionRequest = async (requestData) => {
  */
 export const resendRequest = async (requestId) => {
   try {
+    // Check if this is a test user
+    const isTestUser = localStorage.getItem('testUser') !== null;
+    
+    if (isTestUser) {
+      console.log('🧪 Using test user - simulating resend request');
+      return {
+        success: true,
+        message: 'OTP resent successfully (test mode)'
+      };
+    }
+    
     const token = await auth.currentUser?.getIdToken();
     
     const response = await fetch(`${API_BASE}/resend/${requestId}`, {
@@ -142,6 +191,28 @@ export const resendRequest = async (requestId) => {
  */
 export const getPendingRequests = async (uid) => {
   try {
+    // Check if this is a test user
+    const isTestUser = localStorage.getItem('testUser') !== null;
+    
+    if (isTestUser) {
+      console.log('🧪 Using test user - returning mock pending requests');
+      // Return mock data for test users
+      return [
+        {
+          id: 'test-request-1',
+          doctor: {
+            name: 'Dr. Test Doctor',
+            specialization: 'Cardiology',
+            email: 'doctor@example.com'
+          },
+          connectionMethod: 'email',
+          message: 'Dr. Test Doctor wants to connect with you',
+          createdAt: new Date().toISOString(),
+          status: 'pending'
+        }
+      ];
+    }
+    
     const user = auth.currentUser;
     
     if (!user) {
@@ -179,6 +250,17 @@ export const getPendingRequests = async (uid) => {
  */
 export const acceptRequest = async (requestId, otp) => {
   try {
+    // Check if this is a test user
+    const isTestUser = localStorage.getItem('testUser') !== null;
+    
+    if (isTestUser) {
+      console.log('🧪 Using test user - simulating accept request');
+      return {
+        success: true,
+        message: 'Connection request accepted successfully (test mode)'
+      };
+    }
+    
     const token = await auth.currentUser?.getIdToken();
     
     const response = await fetch(`${API_BASE}/accept/${requestId}`, {
@@ -210,6 +292,25 @@ export const acceptRequest = async (requestId, otp) => {
  */
 export const getConnectedDoctors = async (uid) => {
   try {
+    // Check if this is a test user
+    const isTestUser = localStorage.getItem('testUser') !== null;
+    
+    if (isTestUser) {
+      console.log('🧪 Using test user - returning mock connected doctors');
+      // Return mock data for test users
+      return [
+        {
+          id: 'test-doctor-1',
+          name: 'Dr. Test Doctor',
+          specialization: 'Cardiology',
+          email: 'doctor@example.com',
+          phone: '+1234567890',
+          connectionDate: new Date().toISOString(),
+          lastInteraction: new Date().toISOString()
+        }
+      ];
+    }
+    
     const token = await auth.currentUser?.getIdToken();
     
     const response = await fetch(`${API_BASE}/patient/doctors`, {
