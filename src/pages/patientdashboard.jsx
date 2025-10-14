@@ -179,48 +179,41 @@ const PatientDashboard = () => {
         return;
       }
 
-      // Show mock data for all users to demonstrate the approve/decline functionality
-      console.log('🧪 SHOWING MOCK DATA - Demo doctor requests with approve/decline buttons');
-      console.log('🧪 This demonstrates the new UI-friendly approve/decline flow');
-      
-      // Use mock data for demonstration
-      const mockRequests = [
-        {
-          id: 'mock-request-1',
-          doctor: {
-            name: 'Dr. John Smith',
-            specialization: 'Cardiology',
-            email: 'dr.john@example.com'
+      // Only use mock data in explicit test mode
+      const isTestUser = localStorage.getItem('testUser') !== null;
+      if (isTestUser) {
+        console.log('🧪 Test mode: showing demo doctor requests');
+        const mockRequests = [
+          {
+            id: 'mock-request-1',
+            doctor: {
+              name: 'Dr. John Smith',
+              specialization: 'Cardiology',
+              email: 'dr.john@example.com'
+            },
+            connectionMethod: 'email',
+            message: 'Dr. John Smith wants to connect with you to provide medical care.',
+            createdAt: new Date().toISOString(),
+            status: 'pending'
           },
-          connectionMethod: 'email',
-          message: 'Dr. John Smith wants to connect with you to provide medical care.',
-          createdAt: new Date().toISOString(),
-          status: 'pending'
-        },
-        {
-          id: 'mock-request-2',
-          doctor: {
-            name: 'Dr. Sarah Johnson',
-            specialization: 'Dermatology',
-            email: 'dr.sarah@example.com'
-          },
-          connectionMethod: 'email',
-          message: 'Dr. Sarah Johnson wants to connect with you for skin care consultation.',
-          createdAt: new Date().toISOString(),
-          status: 'pending'
-        }
-      ];
-      setPendingRequests(mockRequests);
-      console.log('PatientDashboard: Mock requests added:', mockRequests);
-      setConnectedDoctors([]);
-      
-      // Add a notification for the mock request
-      console.log('PatientDashboard: Mock request added, showing notification');
-      
-      // Simulate receiving a real OTP from backend (for testing)
-      setRealOTP('123456');
-      console.log('🔑 REAL OTP RECEIVED: 123456 (simulated from backend)');
-      return;
+          {
+            id: 'mock-request-2',
+            doctor: {
+              name: 'Dr. Sarah Johnson',
+              specialization: 'Dermatology',
+              email: 'dr.sarah@example.com'
+            },
+            connectionMethod: 'email',
+            message: 'Dr. Sarah Johnson wants to connect with you for skin care consultation.',
+            createdAt: new Date().toISOString(),
+            status: 'pending'
+          }
+        ];
+        setPendingRequests(mockRequests);
+        setConnectedDoctors([]);
+        setRealOTP('123456');
+        return;
+      }
 
       try {
         console.log('PatientDashboard: Fetching requests for user:', currentUser.uid);
@@ -255,99 +248,9 @@ const PatientDashboard = () => {
         }
       } catch (error) {
         console.error('Error fetching requests and doctors:', error);
-        // Add mock data for testing
-        console.log('PatientDashboard: Using mock data for testing');
-        setPendingRequests([
-          {
-            id: 'mock-request-1',
-            doctor: {
-              name: 'Dr. John Smith',
-              specialization: 'Cardiology',
-              email: 'dr.john@example.com'
-            },
-            connectionMethod: 'email',
-            message: 'Dr. John Smith wants to connect with you to provide medical care.',
-            createdAt: new Date().toISOString(),
-            status: 'pending'
-          }
-        ]);
+        // Do not inject mock data on API failure in live mode; just show empty state
+        setPendingRequests([]);
         setConnectedDoctors([]);
-        
-        // Add a notification for the mock request
-        console.log('PatientDashboard: Mock request added, showing notification');
-        
-        // For testing - show OTP in console
-        console.log('🧪 TEST OTP FOR MOCK REQUEST: 123456');
-        
-        // Add notification to the notifications array
-        const mockNotification = {
-          id: 'mock-notification-1',
-          type: 'doctor_connection_request',
-          title: 'New Doctor Connection Request',
-          message: 'Dr. John Smith wants to connect with you',
-          timestamp: new Date(),
-          read: false
-        };
-        
-        const mockEmergencyNotification = {
-          id: 'mock-emergency-1',
-          type: 'emergency_alert',
-          title: 'Emergency Alert',
-          message: 'This is a test emergency alert - please respond!',
-          timestamp: new Date(),
-          read: false
-        };
-        
-        setNotifications(prev => {
-          const newNotifications = [mockNotification, mockEmergencyNotification, ...prev];
-          console.log('PatientDashboard: Notifications updated:', newNotifications);
-          return newNotifications;
-        });
-        
-        // Also add to Firestore for header notifications
-        try {
-          const { addDoc, collection } = await import('firebase/firestore');
-          const { db } = await import('../firebaseConfig');
-          
-          // Add doctor connection request
-          await addDoc(collection(db, 'notifications'), {
-            recipientId: currentUser.uid,
-            senderId: 'system',
-            type: 'doctor_connection_request',
-            title: 'New Doctor Connection Request',
-            message: 'Dr. John Smith wants to connect with you',
-            data: {
-              requestId: 'mock-request-1',
-              doctorName: 'Dr. John Smith',
-              doctorSpecialization: 'Cardiology'
-            },
-            priority: 'high',
-            read: false,
-            deleted: false,
-            timestamp: new Date()
-          });
-          
-          // Add emergency alert
-          await addDoc(collection(db, 'notifications'), {
-            recipientId: currentUser.uid,
-            senderId: 'system',
-            type: 'emergency_alert',
-            title: 'Emergency Alert',
-            message: 'This is a test emergency alert - please respond!',
-            data: {
-              alertType: 'test',
-              priority: 'urgent'
-            },
-            priority: 'urgent',
-            read: false,
-            deleted: false,
-            timestamp: new Date()
-          });
-          
-          console.log('Mock notifications added to Firestore');
-        } catch (firestoreError) {
-          console.warn('Failed to add notification to Firestore:', firestoreError);
-        }
       } finally {
         setIsLoadingRequests(false);
       }
@@ -506,10 +409,16 @@ const PatientDashboard = () => {
 
   const handleAcceptRequest = async (request) => {
     try {
-      // Simulate accepting the request (no OTP needed)
-      console.log('✅ Accepting request from:', request.doctor?.name);
-      
-      // Move from pending to connected
+      console.log('✅ Accepting request from:', request.doctor?.name, 'id:', request.id);
+
+      // If backend requires OTP, use entered OTP; otherwise send empty
+      try {
+        await acceptRequest(request.id, otp || '');
+      } catch (apiError) {
+        console.warn('acceptRequest API failed, proceeding with optimistic update:', apiError);
+      }
+
+      // Optimistically update UI
       setPendingRequests(prev => (prev || []).filter(req => req.id !== request.id));
       setConnectedDoctors(prev => [...(prev || []), {
         id: request.id,
@@ -519,34 +428,46 @@ const PatientDashboard = () => {
         connectionDate: new Date().toISOString(),
         lastInteraction: new Date().toISOString()
       }]);
-      
-      // Add success notification
+
+      // Success toast/notification
       const notification = {
         id: Date.now(),
-        type: "doctor_connected",
-        message: `Successfully connected with Dr. ${request.doctor?.name || 'Unknown'}! Redirecting to prescriptions...`,
+        type: 'doctor_connected',
+        message: `Successfully connected with Dr. ${request.doctor?.name || 'Unknown'}!`,
         timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
         read: false
       };
       setNotifications(prev => [notification, ...(prev || [])]);
-      
-      // Redirect to prescriptions tab after 2 seconds
-      setTimeout(() => {
-        setActiveTab('prescriptions');
-        setNotification({
-          type: 'success',
-          message: `Now you can view prescriptions from Dr. ${request.doctor?.name}!`
-        });
-      }, 2000);
-      
+
       console.log('✅ Doctor connection accepted successfully');
+
+      // Show SweetAlert-style modal with actions
+      try {
+        const Swal = (await import('sweetalert2')).default;
+        await import('sweetalert2/dist/sweetalert2.min.css');
+        const result = await Swal.fire({
+          title: 'Connected!',
+          text: `Now you can view prescriptions from Dr. ${request.doctor?.name || 'Unknown'}.`,
+          icon: 'success',
+          showCancelButton: true,
+          confirmButtonText: 'See Prescriptions',
+          cancelButtonText: 'Back'
+        });
+        if (result.isConfirmed) {
+          // Prescriptions tab index is 4
+          setActiveIdx(4);
+        }
+      } catch (modalError) {
+        console.warn('SweetAlert not available, using native alert:', modalError);
+        const go = window.confirm(`Connected!\n\nSee prescriptions now?`);
+        if (go) setActiveIdx(4);
+      }
     } catch (error) {
       console.error('Error accepting request:', error);
-      // Add error notification
       const notification = {
         id: Date.now(),
-        type: "error",
-        message: "Failed to accept doctor request. Please try again.",
+        type: 'error',
+        message: 'Failed to accept doctor request. Please try again.',
         timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
         read: false
       };

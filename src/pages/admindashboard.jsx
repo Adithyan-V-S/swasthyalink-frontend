@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { auth, db } from "../firebaseConfig";
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, setDoc } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
-import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { signInAnonymously, onAuthStateChanged, createUserWithEmailAndPassword } from "firebase/auth";
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -418,6 +418,8 @@ const AdminDashboard = () => {
       name: formData.name.trim(),
       email: email,
       password: password, // In production, this should be hashed
+      // Demo-only: store generated password for display/copy in admin UI
+      generatedPassword: password,
       specialization: formData.specialization.trim(),
       license: formData.license.trim(),
       phone: formData.phone.trim(),
@@ -432,37 +434,65 @@ const AdminDashboard = () => {
 
       console.log('Adding doctor:', newDoctor);
 
-      // Try to add to Firestore if authenticated, otherwise use local storage
-      if (auth.currentUser) {
-        console.log('Current user:', auth.currentUser.uid);
-        console.log('Adding doctor to Firestore:', newDoctor);
+      // Always store in localStorage first for immediate availability
+      const existingDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+      existingDoctors.push(newDoctor);
+      localStorage.setItem('mockDoctors', JSON.stringify(existingDoctors));
+      window.dispatchEvent(new CustomEvent('mockDoctorsUpdated'));
+      console.log('✅ Doctor added to localStorage');
 
-        try {
-          const docRef = doc(db, "users", doctorId);
-          await setDoc(docRef, newDoctor);
-          console.log('Doctor added successfully to Firestore');
-        } catch (firestoreError) {
-          console.error('Firestore error:', firestoreError);
-          console.log('Falling back to localStorage due to Firestore error');
-
-          // Fallback to localStorage if Firestore fails
-          const existingDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
-          existingDoctors.push(newDoctor);
-          localStorage.setItem('mockDoctors', JSON.stringify(existingDoctors));
-          window.dispatchEvent(new CustomEvent('mockDoctorsUpdated'));
+      // Try to create Firebase Auth account for the doctor (optional)
+      try {
+        console.log('Creating Firebase Auth account for doctor:', email);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const firebaseUser = userCredential.user;
+        
+        console.log('✅ Firebase Auth user created:', firebaseUser.uid);
+        
+        // Update the doctor object with Firebase UID
+        newDoctor.uid = firebaseUser.uid;
+        newDoctor.firebaseUid = firebaseUser.uid;
+        
+        // Update localStorage with Firebase UID
+        const updatedDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+        const doctorIndex = updatedDoctors.findIndex(doc => doc.id === newDoctor.id);
+        if (doctorIndex !== -1) {
+          updatedDoctors[doctorIndex] = newDoctor;
+          localStorage.setItem('mockDoctors', JSON.stringify(updatedDoctors));
         }
-      } else if (isPresetAdmin) {
-        console.log('Using preset admin - storing in local storage');
-
-        // Store in localStorage for demo purposes
-        const existingDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
-        existingDoctors.push(newDoctor);
-        localStorage.setItem('mockDoctors', JSON.stringify(existingDoctors));
-
-        // Trigger custom event for login page to update
-        window.dispatchEvent(new CustomEvent('mockDoctorsUpdated'));
-
-        console.log('Doctor added successfully to local storage');
+        
+        // Create user document in Firestore
+        const userData = {
+          uid: firebaseUser.uid,
+          name: newDoctor.name,
+          email: newDoctor.email,
+          role: 'doctor',
+          // Demo-only: persist generated password so admin can copy it later
+          generatedPassword: password,
+          specialization: newDoctor.specialization,
+          license: newDoctor.license,
+          phone: newDoctor.phone,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          emailVerified: true
+        };
+        
+        const docRef = doc(db, "users", firebaseUser.uid);
+        await setDoc(docRef, userData);
+        console.log('✅ Doctor document created in Firestore');
+        
+        console.log('✅ Doctor added successfully to both Firebase and localStorage');
+        
+      } catch (firebaseError) {
+        console.error('Firebase error:', firebaseError);
+        
+        if (firebaseError.code === 'auth/email-already-in-use') {
+          console.log('Doctor email already exists in Firebase, continuing with localStorage only');
+        } else {
+          console.log('Firebase account creation failed, but doctor is available in localStorage');
+        }
+        // Don't throw error - doctor is still available in localStorage
       }
 
       alert(`Doctor added successfully!\n\nDoctor ID: ${doctorId}\nEmail: ${email}\nPassword: ${password}\nName: ${formData.name}`);
@@ -1097,11 +1127,11 @@ const AdminDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                             <div className="flex items-center space-x-2">
                               <span className="font-mono text-xs bg-gray-700 px-2 py-1 rounded border">
-                                {doctor.password ? '••••••••' : 'N/A'}
+                                {(doctor.password || doctor.generatedPassword) ? '••••••••' : 'N/A'}
                               </span>
-                              {doctor.password && (
+                              {(doctor.password || doctor.generatedPassword) && (
                                 <button
-                                  onClick={() => copyToClipboard(doctor.password, 'password')}
+                                  onClick={() => copyToClipboard(doctor.password || doctor.generatedPassword, 'password')}
                                   className="text-green-400 hover:text-green-300 transition-colors p-1 rounded hover:bg-gray-600"
                                   title="Copy password"
                                 >
@@ -1118,7 +1148,7 @@ const AdminDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
                               <button
-                                onClick={() => copyToClipboard(`Email: ${doctor.email}\nPassword: ${doctor.password}`, 'credentials')}
+                                onClick={() => copyToClipboard(`Email: ${doctor.email}\nPassword: ${doctor.password || doctor.generatedPassword}`, 'credentials')}
                                 className="text-purple-400 hover:text-purple-300 transition-colors text-xs bg-purple-900 px-2 py-1 rounded"
                                 title="Copy both email and password"
                               >

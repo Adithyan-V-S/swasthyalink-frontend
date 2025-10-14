@@ -229,7 +229,7 @@ const Login = () => {
       // Create user document in Firestore
       const userData = {
         uid: user.uid,
-        name: testUser.role === 'doctor' ? 'Dr. Test Doctor' : 
+        name: testUser.role === 'doctor' ? (testUser.name || 'Dr. Test Doctor') : 
               testUser.role === 'patient' ? 'Test Patient' : 'Test Family Member',
         email: user.email,
         role: testUser.role,
@@ -238,6 +238,14 @@ const Login = () => {
         emailVerified: user.emailVerified,
         photoURL: user.photoURL || null
       };
+      
+      // Add doctor-specific fields if it's a doctor account
+      if (testUser.role === 'doctor') {
+        userData.specialization = testUser.specialization || 'General Medicine';
+        userData.license = testUser.license || 'TEST123';
+        userData.phone = testUser.phone || '+1234567890';
+        userData.status = 'active';
+      }
       
       await setDoc(doc(db, "users", user.uid), userData);
       console.log(`✅ User document created in Firestore for ${testUser.role}`);
@@ -330,6 +338,8 @@ const Login = () => {
     const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
     console.log("🔍 Available mock doctors:", mockDoctors);
     console.log("🔍 Looking for:", { email: email.toLowerCase(), password });
+    console.log("🔍 localStorage mockDoctors key exists:", localStorage.getItem('mockDoctors') !== null);
+    console.log("🔍 Number of mock doctors found:", mockDoctors.length);
 
     // Debug: Show all doctor emails and passwords for troubleshooting
     mockDoctors.forEach((doc, index) => {
@@ -338,47 +348,76 @@ const Login = () => {
         emailLower: doc.email?.toLowerCase(),
         password: doc.password,
         name: doc.name,
-        specialization: doc.specialization
+        specialization: doc.specialization,
+        id: doc.id,
+        uid: doc.uid
       });
       console.log(`🔍 Comparing: "${doc.email?.toLowerCase()}" === "${email.toLowerCase()}" ?`, doc.email?.toLowerCase() === email.toLowerCase());
       console.log(`🔍 Password match: "${doc.password}" === "${password}" ?`, doc.password === password);
     });
 
-    const doctorMatch = mockDoctors.find(doc =>
-      doc.email?.toLowerCase().trim() === email.toLowerCase().trim() && 
-      doc.password?.trim() === password.trim()
-    );
-    console.log("🔍 Doctor match result:", doctorMatch);
-
-    if (doctorMatch) {
-      console.log("✅ Doctor credentials found in admin-created doctors, redirecting to doctor dashboard");
-      console.log("Doctor match details:", doctorMatch);
-      setLoading(false);
-
-      try {
-        // Try to create the doctor account in Firebase if it doesn't exist
-        await createTestUserAccount({
-          email: doctorMatch.email,
-          password: doctorMatch.password,
-          role: "doctor",
-          redirect: "/doctordashboard"
-        });
-        
-        // Create doctor user object for localStorage
+    // If no mock doctors found, try to create some test data
+    if (mockDoctors.length === 0) {
+      console.log("⚠️ No mock doctors found, creating test data...");
+      const testDoctors = [
+        {
+          id: 'TEST_DOC_1',
+          uid: 'TEST_DOC_1',
+          name: 'Dr. Test Doctor 1',
+          email: 'doctor1758796374014@swasthyakink.com',
+          password: 'Doc374014!',
+          specialization: 'General Medicine',
+          license: 'TEST123456',
+          phone: '+1234567890',
+          role: 'doctor',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'TEST_DOC_2',
+          uid: 'TEST_DOC_2',
+          name: 'Dr. Test Doctor 2',
+          email: 'doctor1760371140428@swasthyalink.com',
+          password: 'Doc140428!',
+          specialization: 'Cardiology',
+          license: 'TEST789012',
+          phone: '+1234567891',
+          role: 'doctor',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        }
+      ];
+      
+      localStorage.setItem('mockDoctors', JSON.stringify(testDoctors));
+      console.log("✅ Test doctors created in localStorage");
+      
+      // Re-check with the new data
+      const newMockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+      console.log("🔍 New mock doctors after creation:", newMockDoctors);
+      
+      // Try to find the doctor again
+      const newDoctorMatch = newMockDoctors.find(doc =>
+        doc.email?.toLowerCase().trim() === email.toLowerCase().trim() && 
+        doc.password?.trim() === password.trim()
+      );
+      
+      if (newDoctorMatch) {
+        console.log("✅ Doctor found after creating test data:", newDoctorMatch);
+        // Process the login with the found doctor
         const doctorUser = {
-          uid: doctorMatch.uid || doctorMatch.id,
-          email: doctorMatch.email,
-          displayName: doctorMatch.name,
+          uid: newDoctorMatch.uid || newDoctorMatch.id || `doctor_${Date.now()}`,
+          email: newDoctorMatch.email,
+          displayName: newDoctorMatch.name,
           emailVerified: true,
-        specialization: doctorMatch.specialization,
-        license: doctorMatch.license,
-        phone: doctorMatch.phone
-      };
+          specialization: newDoctorMatch.specialization,
+          license: newDoctorMatch.license,
+          phone: newDoctorMatch.phone,
+          role: 'doctor'
+        };
 
         localStorage.setItem('testUser', JSON.stringify(doctorUser));
         localStorage.setItem('testUserRole', 'doctor');
 
-        // Force trigger storage event for same-tab detection
         window.dispatchEvent(new StorageEvent('storage', {
           key: 'testUser',
           newValue: JSON.stringify(doctorUser)
@@ -390,11 +429,93 @@ const Login = () => {
         } catch (error) {
           console.error("Navigation error:", error);
         }
-      } catch (error) {
-        console.error("Error creating doctor account:", error);
-        setError("Failed to create doctor account. Please try again.");
-        setLoading(false);
+        return;
       }
+    }
+
+    const doctorMatch = mockDoctors.find(doc =>
+      doc.email?.toLowerCase().trim() === email.toLowerCase().trim() && 
+      doc.password?.trim() === password.trim()
+    );
+    console.log("🔍 Doctor match result:", doctorMatch);
+
+    if (doctorMatch) {
+      console.log("✅ Doctor credentials found in admin-created doctors");
+      console.log("Doctor match details:", doctorMatch);
+      setLoading(false);
+
+      // Create doctor user object for localStorage
+      const doctorUser = {
+        uid: doctorMatch.uid || doctorMatch.id || `doctor_${Date.now()}`,
+        email: doctorMatch.email,
+        displayName: doctorMatch.name,
+        emailVerified: true,
+        specialization: doctorMatch.specialization,
+        license: doctorMatch.license,
+        phone: doctorMatch.phone,
+        role: 'doctor'
+      };
+
+      // Try Firebase Auth first, but don't fail if it doesn't work
+      try {
+        console.log("Attempting Firebase Auth sign-in...");
+        const userCredential = await signInWithEmailAndPassword(auth, doctorMatch.email, doctorMatch.password);
+        const user = userCredential.user;
+        
+        console.log("✅ Doctor signed in successfully with Firebase Auth:", user.uid);
+        
+        // Update doctor user with Firebase UID
+        doctorUser.uid = user.uid;
+        
+      } catch (firebaseError) {
+        console.log("Firebase Auth failed, using localStorage authentication:", firebaseError.message);
+        
+        // Try to create Firebase account if it doesn't exist
+        if (firebaseError.code === 'auth/user-not-found' || firebaseError.code === 'auth/wrong-password') {
+          try {
+            console.log("Creating Firebase account for doctor...");
+            await createTestUserAccount({
+              email: doctorMatch.email,
+              password: doctorMatch.password,
+              role: "doctor",
+              name: doctorMatch.name,
+              specialization: doctorMatch.specialization,
+              license: doctorMatch.license,
+              phone: doctorMatch.phone,
+              redirect: "/doctordashboard"
+            });
+            
+            // Update doctor user with new Firebase UID
+            const updatedDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
+            const doctorIndex = updatedDoctors.findIndex(doc => doc.id === doctorMatch.id);
+            if (doctorIndex !== -1) {
+              updatedDoctors[doctorIndex].uid = doctorUser.uid;
+              localStorage.setItem('mockDoctors', JSON.stringify(updatedDoctors));
+            }
+            
+          } catch (createError) {
+            console.log("Firebase account creation failed, continuing with localStorage:", createError.message);
+          }
+        }
+      }
+
+      // Store user data and proceed with login
+      localStorage.setItem('testUser', JSON.stringify(doctorUser));
+      localStorage.setItem('testUserRole', 'doctor');
+
+      // Force trigger storage event for same-tab detection
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'testUser',
+        newValue: JSON.stringify(doctorUser)
+      }));
+
+      try {
+        navigate("/doctordashboard");
+        console.log("Navigation to doctor dashboard completed");
+      } catch (error) {
+        console.error("Navigation error:", error);
+      }
+      
       return;
     }
 

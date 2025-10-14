@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getAuth, signOut } from "firebase/auth";
-import { createNotification } from "../services/notificationService";
+import { createNotification, subscribeToNotifications, markNotificationAsRead, NOTIFICATION_TYPES } from "../services/notificationService";
 import { getPendingRequests, acceptRequest, getConnectedDoctors, createConnectionRequest, searchPatients } from "../services/patientDoctorService";
 import QRCode from "react-qr-code";
 import QRScanner from "../components/QRScanner";
@@ -36,6 +36,8 @@ const DoctorDashboard = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showPatientProfile, setShowPatientProfile] = useState(false);
   const [selectedPatientForProfile, setSelectedPatientForProfile] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     console.log('Doctor Dashboard: AuthContext currentUser:', currentUser);
@@ -47,12 +49,66 @@ const DoctorDashboard = () => {
       console.log('Doctor Dashboard: User email:', currentUser.email);
       console.log('Doctor Dashboard: User role:', currentUser.role);
       loadDoctorData();
+      setupNotifications();
     } else {
       console.log('Doctor Dashboard: No valid user found');
       console.log('Doctor Dashboard: User needs to sign in again');
       setNotification('Please sign in again to access the doctor dashboard.');
     }
   }, [currentUser]);
+
+  const setupNotifications = () => {
+    if (!currentUser?.uid) return;
+
+    const unsubscribe = subscribeToNotifications(currentUser.uid, (notifs) => {
+      console.log('Doctor Dashboard: Received notifications:', notifs);
+      setNotifications(notifs);
+      
+      // Count unread notifications
+      const unread = notifs.filter(n => !n.read).length;
+      setUnreadCount(unread);
+
+      // Check for connection accepted notifications and show SweetAlert
+      const connectionAccepted = notifs.find(n => 
+        n.type === NOTIFICATION_TYPES.CONNECTION_ACCEPTED && !n.read
+      );
+
+      if (connectionAccepted) {
+        showConnectionAcceptedAlert(connectionAccepted);
+        // Mark as read
+        markNotificationAsRead(connectionAccepted.id);
+      }
+    });
+
+    return unsubscribe;
+  };
+
+  const showConnectionAcceptedAlert = async (notification) => {
+    try {
+      // Dynamically import SweetAlert2
+      const Swal = (await import('sweetalert2')).default;
+      
+      const result = await Swal.fire({
+        title: 'Connection Established Successfully!',
+        text: notification.message || 'A patient has accepted your connection request',
+        icon: 'success',
+        confirmButtonText: 'Go to Prescriptions',
+        showCancelButton: true,
+        cancelButtonText: 'Stay Here',
+        confirmButtonColor: '#3B82F6',
+        cancelButtonColor: '#6B7280'
+      });
+
+      if (result.isConfirmed) {
+        // Navigate to prescriptions tab
+        setActiveTab('prescriptions');
+      }
+    } catch (error) {
+      console.error('Error showing connection accepted alert:', error);
+      // Fallback to regular notification
+      setNotification('Connection established successfully!');
+    }
+  };
 
   const openPrescriptionModal = (patient) => {
     setSelectedPatient(patient);
@@ -399,7 +455,19 @@ const DoctorDashboard = () => {
           <div className="p-6">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Doctor Dashboard</h1>
+              <div className="flex items-center justify-between mb-2">
+                <h1 className="text-2xl font-bold text-gray-900">Doctor Dashboard</h1>
+                {unreadCount > 0 && (
+                  <div className="relative">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 text-lg">🔔</span>
+                    </div>
+                    <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      {unreadCount}
+                    </div>
+                  </div>
+                )}
+              </div>
               <p className="text-gray-600 text-sm">Welcome back, {profile.name}</p>
               <div className="mt-2">
                 <div className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium inline-block">

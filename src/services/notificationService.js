@@ -25,6 +25,7 @@ export const NOTIFICATION_TYPES = {
   MEDICATION_REMINDER: 'medication_reminder',
   SYSTEM_ALERT: 'system_alert',
   DOCTOR_CONNECTION_REQUEST: 'doctor_connection_request',
+  CONNECTION_ACCEPTED: 'connection_accepted',
   PRESCRIPTION_RECEIVED: 'prescription_received'
 };
 
@@ -337,6 +338,12 @@ export const getNotificationIcon = (type) => {
       return 'medication';
     case NOTIFICATION_TYPES.SYSTEM_ALERT:
       return 'info';
+    case NOTIFICATION_TYPES.DOCTOR_CONNECTION_REQUEST:
+      return 'person_add';
+    case NOTIFICATION_TYPES.CONNECTION_ACCEPTED:
+      return 'check_circle';
+    case NOTIFICATION_TYPES.PRESCRIPTION_RECEIVED:
+      return 'medication';
     default:
       return 'notifications';
   }

@@ -54,8 +54,9 @@ export const AuthProvider = ({ children }) => {
         const isTestUser = localStorage.getItem('testUser') !== null;
 
         if (isTestUser) {
-          console.log('🧪 Using test user - skipping Firestore operations in AuthContext');
-          setUserRole('patient'); // Default role for test users
+          console.log('🧪 Using test user - checking role from localStorage');
+          const testUserRole = localStorage.getItem('testUserRole');
+          setUserRole(testUserRole || 'patient'); // Use stored role or default to patient
           setLoading(false);
           return;
         }
@@ -173,11 +174,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   const isEmailVerified = () => {
-    // Handle test user
-    if (localStorage.getItem('testUser')) {
-      return true;
-    }
-    return currentUser?.emailVerified || isPresetAdmin;
+    // Treat test users and preset admin as verified
+    if (localStorage.getItem('testUser') || isPresetAdmin) return true;
+
+    // If Firestore role resolved to doctor, allow access even if Firebase flag isn't set
+    if (userRole === 'doctor') return true;
+
+    return !!currentUser?.emailVerified;
   };
 
   const getUserRole = () => {
