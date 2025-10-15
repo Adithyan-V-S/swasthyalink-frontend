@@ -129,7 +129,13 @@ export const createConnectionRequest = async (requestData) => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData = {};
+      try { errorData = await response.json(); } catch (_) {}
+      // Treat 409 (Conflict) as a soft failure so the UI can surface a friendly message
+      if (response.status === 409) {
+        console.warn('Connection already exists (409):', errorData);
+        return { success: false, alreadyExists: true, error: errorData.error || 'Connection already exists' };
+      }
       console.error('Connection request API error:', errorData);
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
@@ -326,9 +332,64 @@ export const getConnectedDoctors = async (uid) => {
     }
 
     const data = await response.json();
-    return data || [];
+    return data.doctors || [];
   } catch (error) {
     console.error('Error fetching connected doctors:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get connected patients for the current doctor
+ * @param {string} uid - Doctor's UID (optional, uses current user)
+ * @returns {Promise<Array>} Array of connected patients
+ */
+export const getConnectedPatients = async (uid) => {
+  try {
+    // Check if this is a test user
+    const isTestUser = localStorage.getItem('testUser') !== null;
+    
+    if (isTestUser) {
+      console.log('🧪 Using test user - returning mock connected patients');
+      // Return mock data for test users
+      return [
+        {
+          id: 'test-patient-1',
+          name: 'John Smith',
+          email: 'john.smith@example.com',
+          phone: '+1234567890',
+          connectionDate: new Date().toISOString(),
+          lastInteraction: new Date().toISOString()
+        },
+        {
+          id: 'test-patient-2',
+          name: 'Sarah Johnson',
+          email: 'sarah.johnson@example.com',
+          phone: '+1234567891',
+          connectionDate: new Date().toISOString(),
+          lastInteraction: new Date().toISOString()
+        }
+      ];
+    }
+    
+    const token = await auth.currentUser?.getIdToken();
+    
+    const response = await fetch(`${API_BASE}/doctor/patients`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.patients || [];
+  } catch (error) {
+    console.error('Error fetching connected patients:', error);
     throw error;
   }
 };

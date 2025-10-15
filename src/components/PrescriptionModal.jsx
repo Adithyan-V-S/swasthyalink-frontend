@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { savePrescription } from '../utils/firebaseUtils';
+import { useAuth } from '../contexts/AuthContext';
 const PrescriptionModal = ({ patient, isOpen, onClose, onSuccess }) => {
+  const { currentUser } = useAuth();
   const [medications, setMedications] = useState([
     { name: '', dosage: '', frequency: '', duration: '', instructions: '' }
   ]);
@@ -19,11 +22,7 @@ const PrescriptionModal = ({ patient, isOpen, onClose, onSuccess }) => {
 
   const loadTemplates = async () => {
     try {
-      const response = await fetch('/api/prescriptions/templates/common', {
-        headers: {
-          'Authorization': `Bearer ${await prescriptionService.getAuthToken()}`
-        }
-      });
+      const response = await fetch('/api/prescriptions/templates/common');
       const result = await response.json();
       if (result.success) {
         setTemplates(result.templates);
@@ -40,11 +39,7 @@ const PrescriptionModal = ({ patient, isOpen, onClose, onSuccess }) => {
     }
 
     try {
-      const response = await fetch(`/api/prescriptions/drugs/search?query=${encodeURIComponent(query)}`, {
-        headers: {
-          'Authorization': `Bearer ${await prescriptionService.getAuthToken()}`
-        }
-      });
+      const response = await fetch(`/api/prescriptions/drugs/search?query=${encodeURIComponent(query)}`);
       const result = await response.json();
       if (result.success) {
         setDrugSuggestions(prev => ({ ...prev, [index]: result.drugs }));
@@ -102,26 +97,32 @@ const PrescriptionModal = ({ patient, isOpen, onClose, onSuccess }) => {
         return;
       }
 
-      const prescriptionData = {
+      const nowIso = new Date().toISOString();
+      const newPrescription = {
         patientId: patient.id,
+        patientName: patient.name,
+        patientEmail: patient.email,
+        doctorId: currentUser?.uid,
+        doctorName: currentUser?.name || currentUser?.displayName || 'Dr. Unknown',
+        doctorEmail: currentUser?.email || 'unknown@example.com',
         medications: validMedications,
         diagnosis,
         instructions: generalInstructions,
         notes,
-        priority
+        priority,
+        status: 'Active',
+        prescribedDate: nowIso.split('T')[0],
+        createdAt: nowIso
       };
 
-      const result = await prescriptionService.createPrescription(prescriptionData);
-      
+      const result = await savePrescription(newPrescription);
+
       if (result.success) {
-        // Send the prescription
-        await prescriptionService.sendPrescription(result.prescriptionId);
-        
-        if (onSuccess) {
-          onSuccess('Prescription sent successfully!');
-        }
+        if (onSuccess) onSuccess('Prescription saved and sent successfully!');
         onClose();
         resetForm();
+      } else {
+        throw new Error(result.error || 'Failed to save prescription');
       }
     } catch (error) {
       console.error('Error creating prescription:', error);

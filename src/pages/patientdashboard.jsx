@@ -6,6 +6,7 @@ import heroImage from "../assets/images/hero-healthcare.jpg";
 import { useAuth } from "../contexts/AuthContext";
 import { subscribeToNotifications } from "../services/notificationService";
 import { getPendingRequests, acceptRequest, getConnectedDoctors, resendRequest } from "../services/patientDoctorService";
+import { subscribeToPatientPrescriptions, formatDate, isTestUser } from "../utils/firebaseUtils";
 
 const records = [
   {
@@ -30,6 +31,19 @@ const records = [
     notes: "Recovered. No complications."
   },
 ];
+
+// Safely format various date representations (Firestore Timestamp, Date, ISO string, ms number)
+const formatDateSafe = (value) => {
+  if (!value) return 'N/A';
+  try {
+    const dateObj = value?.toDate?.() ?? value;
+    const asDate = (dateObj instanceof Date) ? dateObj : new Date(dateObj);
+    if (typeof asDate?.toLocaleDateString === 'function' && !isNaN(asDate)) {
+      return asDate.toLocaleDateString();
+    }
+  } catch (_) {}
+  return 'N/A';
+};
 
 // Derive a user object from Firebase auth when available; fall back to demo values
 const useCurrentUser = () => {
@@ -97,13 +111,14 @@ const PatientDashboard = () => {
     accessLevel: "limited",
     isEmergencyContact: false
   });
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [prescriptionsLoading, setPrescriptionsLoading] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [connectedDoctors, setConnectedDoctors] = useState([]);
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [otp, setOtp] = useState("");
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
-  const [prescriptions, setPrescriptions] = useState([]);
   const [showTestNotification, setShowTestNotification] = useState(false);
   const [realOTP, setRealOTP] = useState(null);
 
@@ -180,8 +195,8 @@ const PatientDashboard = () => {
       }
 
       // Only use mock data in explicit test mode
-      const isTestUser = localStorage.getItem('testUser') !== null;
-      if (isTestUser) {
+      const isTestUserMode = localStorage.getItem('testUser') !== null;
+      if (isTestUserMode) {
         console.log('🧪 Test mode: showing demo doctor requests');
         const mockRequests = [
           {
@@ -259,82 +274,56 @@ const PatientDashboard = () => {
     fetchRequestsAndDoctors();
   }, [currentUser]);
 
-  // Fetch prescriptions from backend
+  // Fetch prescriptions with real-time subscription
   useEffect(() => {
-    const fetchPrescriptions = async () => {
-      if (!currentUser?.uid) return;
-      
-      // Check if this is a test user
-      const isTestUser = localStorage.getItem('testUser') !== null;
-      
-      if (isTestUser) {
-        console.log('🧪 Using test user - returning mock prescriptions');
-        // Use mock data for test users
-        const mockPrescriptions = [
-          {
-            id: 1,
-            doctor: "Dr. A. Sharma",
-            date: "2024-05-01",
-            medication: "Amlodipine 5mg",
-            dosage: "1 tablet daily",
-            notes: "Monitor BP"
-          },
-          {
-            id: 2,
-            doctor: "Dr. R. Singh",
-            date: "2024-03-15",
-            medication: "Metformin 500mg",
-            dosage: "2 tablets daily",
-            notes: "With meals"
-          }
-        ];
-        setPrescriptions(mockPrescriptions);
-        console.log('PatientDashboard: Successfully loaded mock prescriptions for test user');
-        return;
-      }
-      
-      try {
-        const token = await auth.currentUser?.getIdToken();
-        const API_BASE = 'http://localhost:3001/api';
-        const response = await fetch(`${API_BASE}/prescriptions?patientUid=${currentUser.uid}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+    if (!currentUser?.uid) {
+      setPrescriptions([]);
+      return;
+    }
+    
+    // Check if this is a test user
+    if (isTestUser()) {
+      console.log('🧪 Using test user - returning mock prescriptions');
+      // Use mock data for test users
+      const mockPrescriptions = [
+        {
+          id: 1,
+          doctorName: "Dr. A. Sharma",
+          medication: "Amlodipine 5mg",
+          dosage: "1 tablet daily",
+          frequency: "Once daily",
+          instructions: "Take with water",
+          notes: "Monitor BP",
+          prescribedDate: "2024-05-01",
+          createdAt: new Date('2024-05-01')
+        },
+        {
+          id: 2,
+          doctorName: "Dr. R. Singh",
+          medication: "Metformin 500mg",
+          dosage: "2 tablets daily",
+          frequency: "Twice daily",
+          instructions: "Take with meals",
+          notes: "Monitor blood sugar",
+          prescribedDate: "2024-03-15",
+          createdAt: new Date('2024-03-15')
         }
-
-        const data = await response.json();
-        setPrescriptions(data.prescriptions || []);
-      } catch (error) {
-        console.error('Error fetching prescriptions:', error);
-        // Fallback to mock data
-        const mockPrescriptions = [
-          {
-            id: 1,
-            doctor: "Dr. A. Sharma",
-            date: "2024-05-01",
-            medication: "Amlodipine 5mg",
-            dosage: "1 tablet daily",
-            notes: "Monitor BP"
-          },
-          {
-            id: 2,
-            doctor: "Dr. R. Singh",
-            date: "2024-03-15",
-            medication: "Metformin 500mg",
-            dosage: "2 tablets daily",
-            notes: "With meals"
-          }
-        ];
-        setPrescriptions(mockPrescriptions);
-      }
+      ];
+      setPrescriptions(mockPrescriptions);
+      return;
+    }
+    
+    // Set up real-time subscription for live users
+    setPrescriptionsLoading(true);
+    const unsubscribe = subscribeToPatientPrescriptions(currentUser.uid, (prescriptions) => {
+      console.log('PatientDashboard: Received prescriptions:', prescriptions);
+      setPrescriptions(prescriptions);
+      setPrescriptionsLoading(false);
+    });
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
     };
-
-    fetchPrescriptions();
   }, [currentUser]);
 
   const qrValue = uid ? `https://yourapp.com/patient/${uid}` : "";
@@ -849,7 +838,7 @@ const PatientDashboard = () => {
                 </div>
                 <div className="space-y-2 mb-4">
                   <p className="text-sm text-gray-600">{doctor.email}</p>
-                  <p className="text-sm text-gray-600">Connected: {doctor.connectedAt?.toLocaleDateString()}</p>
+                  <p className="text-sm text-gray-600">Connected: {formatDateSafe(doctor.connectedAt || doctor.connectionDate)}</p>
                 </div>
                 <div className="flex gap-2">
                   <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Prescriptions: {doctor.permissions?.prescriptions ? 'Enabled' : 'Disabled'}</span>

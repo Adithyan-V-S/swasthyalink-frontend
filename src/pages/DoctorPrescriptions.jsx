@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { auth } from "../firebaseConfig";
-import { getConnectedDoctors } from "../services/patientDoctorService";
+import { getConnectedPatients } from "../services/patientDoctorService";
+import { savePrescription, subscribeToDoctorPrescriptions, formatDate, isTestUser } from "../utils/firebaseUtils";
 
 const DoctorPrescriptions = () => {
   const { currentUser } = useAuth();
+  const location = useLocation();
   const [connectedPatients, setConnectedPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [prescription, setPrescription] = useState({
@@ -22,15 +25,46 @@ const DoctorPrescriptions = () => {
   useEffect(() => {
     loadConnectedPatients();
     loadPrescriptions();
+    
+    // Set up real-time subscription to prescriptions
+    if (currentUser?.uid && !isTestUser()) {
+      const unsubscribe = subscribeToDoctorPrescriptions(currentUser.uid, (prescriptions) => {
+        setPrescriptions(prescriptions);
+      });
+      
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
+    }
   }, [currentUser]);
+
+  // After patients load, try to preselect based on URL/state or single result
+  useEffect(() => {
+    if (!connectedPatients || connectedPatients.length === 0) return;
+
+    // Prefer explicit routing hints
+    const search = new URLSearchParams(location.search || "");
+    const hintedId = search.get('patientId') || location.state?.patientId || location.state?.patient?.id;
+
+    if (hintedId) {
+      const match = connectedPatients.find(p => p.id === hintedId);
+      if (match) {
+        setSelectedPatient(match);
+        return;
+      }
+    }
+
+    // If only one patient is connected, auto-select
+    if (!selectedPatient && connectedPatients.length === 1) {
+      setSelectedPatient(connectedPatients[0]);
+    }
+  }, [connectedPatients, location.state, location.search]);
 
   const loadConnectedPatients = async () => {
     try {
       setIsLoading(true);
       // Check if this is a test user
-      const isTestUser = localStorage.getItem('testUser') !== null;
-      
-      if (isTestUser) {
+      if (isTestUser()) {
         // Use mock data for test users
         setConnectedPatients([
           {
@@ -58,10 +92,11 @@ const DoctorPrescriptions = () => {
       }
       
       // For real users, fetch from backend
-      const response = await getConnectedDoctors();
-      if (response && response.success) {
-        // Transform the response to match our expected format
-        const patients = response.doctors.map(patient => ({
+      const response = await getConnectedPatients();
+      // Service may return an array or an object with { patients }
+      const rawPatients = Array.isArray(response) ? response : response?.patients;
+      if (rawPatients && rawPatients.length >= 0) {
+        const patients = rawPatients.map(patient => ({
           id: patient.id,
           name: patient.name,
           email: patient.email,
@@ -69,9 +104,11 @@ const DoctorPrescriptions = () => {
           gender: patient.gender || 'Not specified',
           bloodType: patient.bloodType || 'Not specified',
           allergies: patient.allergies || [],
-          lastVisit: patient.lastVisit || 'Never'
+          lastVisit: patient.lastVisit || patient.connectedAt || 'Never'
         }));
         setConnectedPatients(patients);
+      } else {
+        setConnectedPatients([]);
       }
     } catch (error) {
       console.error('Error loading connected patients:', error);
@@ -151,37 +188,36 @@ const DoctorPrescriptions = () => {
         createdAt: new Date().toISOString()
       };
 
-      // Save to Firestore
-      try {
-        const { addDoc, collection } = await import('firebase/firestore');
-        const { db } = await import('../firebaseConfig');
+      // Save to Firestore using utility function
+      const result = await savePrescription(newPrescription);
+      
+      if (result.success) {
+        // Show success message with SweetAlert2
+        const Swal = (await import('sweetalert2')).default;
+        await Swal.fire({
+          title: 'Prescription Saved Successfully!',
+          text: `Prescription for ${selectedPatient.name} has been saved.`,
+          icon: 'success',
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#3B82F6'
+        });
         
-        await addDoc(collection(db, 'prescriptions'), newPrescription);
-        console.log('✅ Prescription saved to Firestore:', newPrescription);
+        // Reset form
+        setPrescription({
+          medication: "",
+          dosage: "",
+          frequency: "",
+          duration: "",
+          instructions: "",
+          notes: ""
+        });
+        setSelectedPatient(null);
         
-        // Also add to local state for immediate UI update
-        setPrescriptions(prev => [newPrescription, ...prev]);
-        
-        setNotification('Prescription saved successfully!');
-      } catch (firestoreError) {
-        console.error('❌ Error saving prescription to Firestore:', firestoreError);
-        // Still add to local state as fallback
-        setPrescriptions(prev => [newPrescription, ...prev]);
-        setNotification('Prescription saved locally (Firestore error)');
+        // Clear notification
+        setNotification('');
+      } else {
+        throw new Error(result.error || 'Failed to save prescription');
       }
-      
-      // Reset form
-      setPrescription({
-        medication: "",
-        dosage: "",
-        frequency: "",
-        duration: "",
-        instructions: "",
-        notes: ""
-      });
-      setSelectedPatient(null);
-      
-      setNotification('Prescription saved successfully!');
       
     } catch (error) {
       console.error('Error saving prescription:', error);
@@ -222,27 +258,43 @@ const DoctorPrescriptions = () => {
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Write New Prescription</h2>
             
             <form onSubmit={handleSubmitPrescription} className="space-y-6">
-              {/* Patient Selection */}
+              {/* Patient Selection / Display */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Patient
+                  Patient
                 </label>
-                <select
-                  value={selectedPatient?.id || ""}
-                  onChange={(e) => {
-                    const patient = connectedPatients.find(p => p.id === e.target.value);
-                    setSelectedPatient(patient);
-                  }}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Choose a patient...</option>
-                  {connectedPatients.map(patient => (
-                    <option key={patient.id} value={patient.id}>
-                      {patient.name} ({patient.email})
-                    </option>
-                  ))}
-                </select>
+                {selectedPatient ? (
+                  <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                    <div>
+                      <div className="font-medium text-gray-900">{selectedPatient.name}</div>
+                      <div className="text-sm text-gray-600">{selectedPatient.email}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPatient(null)}
+                      className="text-sm text-blue-700 hover:text-blue-900"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedPatient?.id || ""}
+                    onChange={(e) => {
+                      const patient = connectedPatients.find(p => p.id === e.target.value);
+                      setSelectedPatient(patient);
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Choose a patient...</option>
+                    {connectedPatients && connectedPatients.length > 0 ? connectedPatients.map((patient, index) => (
+                      <option key={patient.id || `patient-${index}`} value={patient.id}>
+                        {patient.name} ({patient.email})
+                      </option>
+                    )) : null}
+                  </select>
+                )}
               </div>
 
               {/* Patient Info Display */}
@@ -379,8 +431,10 @@ const DoctorPrescriptions = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {prescriptions.map((pres) => (
-                  <div key={pres.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                {prescriptions && prescriptions.length > 0 ? prescriptions.map((pres, index) => {
+                  console.log('Rendering prescription:', { id: pres.id, medication: pres.medication, index });
+                  return (
+                  <div key={pres.id || `prescription-${index}`} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="font-medium text-gray-900">{pres.medication}</h3>
@@ -418,7 +472,8 @@ const DoctorPrescriptions = () => {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                }) : null}
               </div>
             )}
           </div>

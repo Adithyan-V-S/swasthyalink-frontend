@@ -10,7 +10,7 @@ import PatientProfileModal from "../components/PatientProfileModal";
 import DoctorPrescriptions from "./DoctorPrescriptions";
 
 const DoctorDashboard = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [profile, setProfile] = useState({
     name: "",
@@ -47,7 +47,7 @@ const DoctorDashboard = () => {
       console.log('Doctor Dashboard: Using currentUser for API calls');
       console.log('Doctor Dashboard: User UID:', currentUser.uid);
       console.log('Doctor Dashboard: User email:', currentUser.email);
-      console.log('Doctor Dashboard: User role:', currentUser.role);
+      console.log('Doctor Dashboard: User role:', userRole);
       loadDoctorData();
       setupNotifications();
     } else {
