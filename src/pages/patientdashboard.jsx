@@ -6,7 +6,7 @@ import heroImage from "../assets/images/hero-healthcare.jpg";
 import { useAuth } from "../contexts/AuthContext";
 import { subscribeToNotifications } from "../services/notificationService";
 import { db } from "../firebaseConfig";
-import { onSnapshot, doc } from "firebase/firestore";
+import { onSnapshot, doc, getDoc } from "firebase/firestore";
 import { getPendingRequests, acceptRequest, getConnectedDoctors, resendRequest } from "../services/patientDoctorService";
 import { subscribeToPatientPrescriptions, formatDate, isTestUser } from "../utils/firebaseUtils";
 
@@ -134,7 +134,7 @@ const PatientDashboard = () => {
       ) },
     { label: "Family", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-      ), badge: (notifications || []).filter(n => !n.read && (n.type === 'family_request' || n.type === 'chat_message' || n.type === 'doctor_connection_request')).length },
+      ) },
     { label: "Appointments", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
       ), badge: (notifications || []).filter(n => !n.read && n.type === 'appointment').length },
@@ -143,7 +143,7 @@ const PatientDashboard = () => {
       ), badge: (notifications || []).filter(n => !n.read && n.type === 'health_record').length },
     { label: "Doctors", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 7v-7m0 0l-9-5m9 5l9-5" /></svg>
-      ) },
+      ), badge: (pendingRequests || []).length },
     { label: "Settings", icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
       ) },
@@ -195,9 +195,32 @@ const PatientDashboard = () => {
       return;
     }
     const familyDocRef = doc(db, 'familyNetworks', currentUser.uid);
-    const unsubscribe = onSnapshot(familyDocRef, (snap) => {
+    const unsubscribe = onSnapshot(familyDocRef, async (snap) => {
       const members = snap.exists() ? (snap.data().members || []) : [];
-      setFamilyMembers(members);
+      
+      // Fetch user photos from Firestore users collection for each member
+      const membersWithPhotos = await Promise.all(members.map(async (member) => {
+        try {
+          // Try to get photo from users collection in Firestore
+          const userDocRef = doc(db, 'users', member.uid);
+          const userSnap = await getDoc(userDocRef);
+          const userData = userSnap.exists() ? userSnap.data() : {};
+          
+          return {
+            ...member,
+            photoURL: userData.photoURL || userData.avatar || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=4f46e5&color=fff&size=48`
+          };
+        } catch (error) {
+          console.warn('Error fetching photo for member:', member.name, error);
+          // Fallback to avatar or generated avatar
+          return {
+            ...member,
+            photoURL: member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=4f46e5&color=fff&size=48`
+          };
+        }
+      }));
+      
+      setFamilyMembers(membersWithPhotos);
     }, (err) => {
       console.warn('Family subscription error:', err);
       setFamilyMembers([]);
@@ -516,9 +539,13 @@ const PatientDashboard = () => {
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {(familyMembers || []).map((member) => (
-            <div key={member.id} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+            <div key={member.uid || member.id} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
               <div className="flex items-center mb-4">
-                <img src={member.avatar} alt={member.name} className="w-12 h-12 rounded-full mr-3" />
+                <img 
+                  src={member.photoURL || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=4f46e5&color=fff&size=48`} 
+                  alt={member.name} 
+                  className="w-12 h-12 rounded-full mr-3" 
+                />
                 <div>
                   <h3 className="font-semibold text-gray-800">{member.name}</h3>
                   <p className="text-sm text-gray-600">{member.relationship}</p>
@@ -526,7 +553,7 @@ const PatientDashboard = () => {
               </div>  
               <div className="space-y-2 mb-4">
                 <p className="text-sm text-gray-600">{member.email}</p>
-                <p className="text-sm text-gray-600">{member.phone}</p>
+                <p className="text-sm text-gray-600">{member.phone || 'Not provided'}</p>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-1 text-xs rounded-full ${
                     member.accessLevel === 'full' ? 'bg-green-100 text-green-800' :
@@ -544,9 +571,20 @@ const PatientDashboard = () => {
               </div>
               
               <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    // Navigate to family chat
+                    console.log('Opening family chat');
+                    // Redirect to family chat page
+                    window.location.href = '/familydashboard';
+                  }}
+                  className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded hover:bg-blue-200"
+                >
+                  💬 Chat
+                </button>
                 <select
                   value={member.accessLevel}
-                  onChange={(e) => handleUpdateAccessLevel(member.id, e.target.value)}
+                  onChange={(e) => handleUpdateAccessLevel(member.uid || member.id, e.target.value)}
                   className="text-xs border rounded px-2 py-1"
                 >
                   <option value="limited">Limited</option>
@@ -554,7 +592,7 @@ const PatientDashboard = () => {
                   <option value="emergency">Emergency Only</option>
                 </select>
                 <button
-                  onClick={() => handleRemoveFamilyMember(member.id)}
+                  onClick={() => handleRemoveFamilyMember(member.uid || member.id)}
                   className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200"
                 >
                   Remove
@@ -572,9 +610,9 @@ const PatientDashboard = () => {
           <h3 className="text-lg font-semibold text-red-800 mb-4">Emergency Contacts</h3>
           <div className="space-y-3">
             {(familyMembers || []).filter(m => m.isEmergencyContact).map((member) => (
-              <div key={member.id} className="flex items-center justify-between bg-white p-3 rounded border">
+              <div key={member.uid || member.id || `emergency-${member.email}`} className="flex items-center justify-between bg-white p-3 rounded border">
                 <div className="flex items-center">
-                  <img src={member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=ef4444&color=fff&size=32`} alt={member.name} className="w-8 h-8 rounded-full mr-3" />
+                  <img src={member.photoURL || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=ef4444&color=fff&size=32`} alt={member.name} className="w-8 h-8 rounded-full mr-3" />
                   <div>
                     <p className="font-medium">{member.name}</p>
                     <p className="text-sm text-gray-600">{member.phone}</p>
@@ -610,10 +648,10 @@ const PatientDashboard = () => {
             </thead>
             <tbody>
               {(familyMembers || []).map((member) => (
-                <tr key={member.id} className="hover:bg-indigo-50 transition-colors">
+                <tr key={member.uid || member.id || `table-${member.email}`} className="hover:bg-indigo-50 transition-colors">
                   <td className="px-4 py-2 border-b">
                     <div className="flex items-center">
-                      <img src={member.avatar} alt={member.name} className="w-8 h-8 rounded-full mr-2" />
+                      <img src={member.photoURL || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=4f46e5&color=fff&size=32`} alt={member.name} className="w-8 h-8 rounded-full mr-2" />
                       {member.name}
                     </div>
                   </td>
