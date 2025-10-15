@@ -5,6 +5,8 @@ import SnakeGame from "./SnakeGame";
 import heroImage from "../assets/images/hero-healthcare.jpg";
 import { useAuth } from "../contexts/AuthContext";
 import { subscribeToNotifications } from "../services/notificationService";
+import { db } from "../firebaseConfig";
+import { onSnapshot, doc } from "firebase/firestore";
 import { getPendingRequests, acceptRequest, getConnectedDoctors, resendRequest } from "../services/patientDoctorService";
 import { subscribeToPatientPrescriptions, formatDate, isTestUser } from "../utils/firebaseUtils";
 
@@ -97,7 +99,7 @@ const PatientDashboard = () => {
   const currentUserInfo = useCurrentUser();
   
   const [activeIdx, setActiveIdx] = useState(0);
-  const [familyMembers, setFamilyMembers] = useState(mockFamilyMembers);
+  const [familyMembers, setFamilyMembers] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [showAddFamily, setShowAddFamily] = useState(false);
   const [showEmergencyAccess, setShowEmergencyAccess] = useState(false);
@@ -184,6 +186,23 @@ const PatientDashboard = () => {
     return () => {
       if (unsubscribe) unsubscribe();
     };
+  }, [currentUser]);
+
+  // Subscribe to real-time family members from Firestore (familyNetworks/{uid})
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setFamilyMembers([]);
+      return;
+    }
+    const familyDocRef = doc(db, 'familyNetworks', currentUser.uid);
+    const unsubscribe = onSnapshot(familyDocRef, (snap) => {
+      const members = snap.exists() ? (snap.data().members || []) : [];
+      setFamilyMembers(members);
+    }, (err) => {
+      console.warn('Family subscription error:', err);
+      setFamilyMembers([]);
+    });
+    return () => unsubscribe();
   }, [currentUser]);
 
   // Fetch pending requests and connected doctors
@@ -493,12 +512,6 @@ const PatientDashboard = () => {
       <section className="bg-white rounded-xl shadow-lg p-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-indigo-700">Family Members</h2>
-          <button
-            onClick={() => setShowAddFamily(true)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            Add Family Member
-          </button>
         </div>
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -552,7 +565,7 @@ const PatientDashboard = () => {
         </div>
       </section>
 
-      {/* Emergency Access */}
+      {/* Emergency Access (hide when no emergency contacts) */}
       <section className="bg-white rounded-xl shadow-lg p-8">
         <h2 className="text-2xl font-bold text-indigo-700 mb-6">Emergency Access</h2>
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
@@ -561,7 +574,7 @@ const PatientDashboard = () => {
             {(familyMembers || []).filter(m => m.isEmergencyContact).map((member) => (
               <div key={member.id} className="flex items-center justify-between bg-white p-3 rounded border">
                 <div className="flex items-center">
-                  <img src={member.avatar} alt={member.name} className="w-8 h-8 rounded-full mr-3" />
+                  <img src={member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=ef4444&color=fff&size=32`} alt={member.name} className="w-8 h-8 rounded-full mr-3" />
                   <div>
                     <p className="font-medium">{member.name}</p>
                     <p className="text-sm text-gray-600">{member.phone}</p>
@@ -575,6 +588,9 @@ const PatientDashboard = () => {
                 </button>
               </div>
             ))}
+            {(familyMembers || []).filter(m => m.isEmergencyContact).length === 0 && (
+              <p className="text-sm text-red-700">No emergency contacts</p>
+            )}
           </div>
         </div>
       </section>
@@ -657,23 +673,25 @@ const PatientDashboard = () => {
       <section className="bg-white rounded-xl shadow-lg p-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-indigo-700">My Prescriptions</h2>
-          <button
-            onClick={() => {
-              const mockNotification = {
-                id: 'test-notification-' + Date.now(),
-                type: 'doctor_connection_request',
-                title: 'Test Doctor Request',
-                message: 'Dr. Test Doctor wants to connect with you',
-                timestamp: new Date(),
-                read: false
-              };
-              setNotifications(prev => [mockNotification, ...prev]);
-              console.log('Test notification added:', mockNotification);
-            }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
-          >
-            Test Notification
-          </button>
+          {isTestUser() && (
+            <button
+              onClick={() => {
+                const mockNotification = {
+                  id: 'test-notification-' + Date.now(),
+                  type: 'doctor_connection_request',
+                  title: 'Test Doctor Request',
+                  message: 'Dr. Test Doctor wants to connect with you',
+                  timestamp: new Date(),
+                  read: false
+                };
+                setNotifications(prev => [mockNotification, ...prev]);
+                console.log('Test notification added:', mockNotification);
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+            >
+              Test Notification
+            </button>
+          )}
         </div>
         {prescriptions.length === 0 ? (
           <div className="text-center py-12">
@@ -906,26 +924,28 @@ const PatientDashboard = () => {
                 </div>
               </div>
 
-              {/* Emergency Notifications */}
-              <div className="lg:col-span-3 bg-red-50 rounded-2xl shadow-lg p-6 border border-red-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-red-800">Emergency Alerts</h3>
-                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                    {notifications.filter(n => n.type === 'emergency_alert').length}
-                  </span>
-                </div>
-                <div className="mt-4 space-y-2">
-                  {notifications.filter(n => n.type === 'emergency_alert').slice(0, 2).map((notification) => (
-                    <div key={notification.id} className="bg-white rounded-lg p-3 border border-red-200">
-                      <p className="text-sm font-medium text-red-800">{notification.title}</p>
-                      <p className="text-xs text-red-600 mt-1">{notification.message}</p>
-                    </div>
-                  ))}
-                  {notifications.filter(n => n.type === 'emergency_alert').length === 0 && (
-                    <p className="text-sm text-red-600">No emergency alerts</p>
-                  )}
-                </div>
-              </div>
+               {/* Emergency Notifications - Only for test users */}
+               {isTestUser() && (
+                 <div className="lg:col-span-3 bg-red-50 rounded-2xl shadow-lg p-6 border border-red-200">
+                   <div className="flex items-center justify-between">
+                     <h3 className="font-semibold text-red-800">Emergency Alerts</h3>
+                     <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                       {notifications.filter(n => n.type === 'emergency_alert').length}
+                     </span>
+                   </div>
+                   <div className="mt-4 space-y-2">
+                     {notifications.filter(n => n.type === 'emergency_alert').slice(0, 2).map((notification) => (
+                       <div key={notification.id} className="bg-white rounded-lg p-3 border border-red-200">
+                         <p className="text-sm font-medium text-red-800">{notification.title}</p>
+                         <p className="text-xs text-red-600 mt-1">{notification.message}</p>
+                       </div>
+                     ))}
+                     {notifications.filter(n => n.type === 'emergency_alert').length === 0 && (
+                       <p className="text-sm text-red-600">No emergency alerts</p>
+                     )}
+                   </div>
+                 </div>
+               )}
 
               {/* Integrated QR card */}
               <div className="lg:col-span-3 bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center">
@@ -1218,26 +1238,28 @@ const PatientDashboard = () => {
         {/* Main Content */}
         <div className="flex-1 p-8">
           <div className="max-w-7xl mx-auto">
-            {/* Test Notification Button - Always Visible */}
-        <div className="mb-4 flex justify-end">
-          <button
-            onClick={() => {
-              const mockNotification = {
-                id: 'test-notification-' + Date.now(),
-                type: 'doctor_connection_request',
-                title: 'Test Doctor Request',
-                message: 'Dr. Test Doctor wants to connect with you',
-                timestamp: new Date(),
-                read: false
-              };
-              setNotifications(prev => [mockNotification, ...prev]);
-              console.log('Test notification added:', mockNotification);
-            }}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-lg"
-          >
-            🧪 Test Notification
-          </button>
-        </div>
+        {/* Test Notification Button - Only in test mode */}
+        {isTestUser() && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={() => {
+                const mockNotification = {
+                  id: 'test-notification-' + Date.now(),
+                  type: 'doctor_connection_request',
+                  title: 'Test Doctor Request',
+                  message: 'Dr. Test Doctor wants to connect with you',
+                  timestamp: new Date(),
+                  read: false
+                };
+                setNotifications(prev => [mockNotification, ...prev]);
+                console.log('Test notification added:', mockNotification);
+              }}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-lg"
+            >
+              🧪 Test Notification
+            </button>
+          </div>
+        )}
             {renderMainContent()}
           </div>
         </div>
