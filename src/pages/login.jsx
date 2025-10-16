@@ -6,7 +6,6 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import authService from "../services/authService";
 import { ERROR_MESSAGES } from "../constants";
 import { useAuth } from "../contexts/AuthContext";
-import DebugCredentials from "../components/DebugCredentials";
 import { testCredentialGeneration, validateCredentials, fixStoredDoctors } from "../utils/credentialTest";
 
 const Login = () => {
@@ -721,8 +720,7 @@ const Login = () => {
 
             {error && <div className="text-red-500 text-sm mb-2">{error}</div>}
 
-            {/* Debug Credentials Component */}
-            {!showForgotPassword && <DebugCredentials />}
+            {/* Debug credentials UI removed for production */}
 
             {showForgotPassword ? (
               // Forgot Password Form
@@ -846,87 +844,7 @@ const Login = () => {
               </button>
             )}
 
-            {/* Test Credentials Section */}
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="text-sm font-semibold text-blue-800">🧪 Test Credentials (Demo)</h4>
-                <button
-                  onClick={() => setRefreshKey(prev => prev + 1)}
-                  className="text-xs text-blue-600 hover:text-blue-800 underline"
-                  title="Refresh credentials list"
-                >
-                  🔄 Refresh
-                </button>
-              </div>
-              <div className="space-y-2 text-xs text-blue-700">
-                <div className="flex justify-between">
-                  <span className="font-medium">Admin:</span>
-                  <span>admin@gmail.com / admin123</span>
-                </div>
-                <div className="text-xs text-blue-600 bg-blue-100 p-2 rounded mt-1">
-                  💡 <strong>Google Sign-In for Admins:</strong> Use any Gmail account with "admin" in the email or the specific admin emails above
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Patient:</span>
-                  <span>test@swasthyakink.com / test123</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Doctor:</span>
-                  <span>doctor@swasthyakink.com / doctor123</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Family:</span>
-                  <span>family@swasthyakink.com / family123</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Test Doctor 1:</span>
-                  <span>doctor1758796374014@swasthyakink.com / Doc374014!</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Test Doctor 2:</span>
-                  <span>doctor1758810279159@swasthyalink.com / Doc279159!</span>
-                </div>
-
-                {/* Show admin-created doctors if any exist */}
-                {(() => {
-                  const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');
-                  if (mockDoctors.length > 0) {
-                    return (
-                      <div className="mt-3 pt-3 border-t border-blue-200">
-                        <div className="text-blue-800 font-medium mb-2">📋 Admin-Created Doctors:</div>
-                        {mockDoctors.slice(0, 3).map((doctor, index) => (
-                          <div key={`${doctor.id}-${refreshKey}`} className="flex flex-col space-y-1 mb-2">
-                            <div className="flex justify-between items-center">
-                              <span className="font-medium text-blue-900">{doctor.name}</span>
-                              <span className="text-xs text-blue-600">{doctor.specialization}</span>
-                            </div>
-                            <div className="text-xs text-blue-700 bg-blue-100 p-1 rounded flex justify-between items-center">
-                              <span>{doctor.email} / {doctor.password}</span>
-                              <button
-                                onClick={() => {
-                                  setEmail(doctor.email);
-                                  setPassword(doctor.password);
-                                }}
-                                className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
-                                title="Auto-fill credentials"
-                              >
-                                Use
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                        {mockDoctors.length > 3 && (
-                          <div className="text-blue-600 text-center mt-2 text-xs">
-                            +{mockDoctors.length - 3} more doctors available
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
-            </div>
+            {/* Demo/test credentials UI removed */}
 
             {!showForgotPassword && (
               <div className="mt-6 text-sm text-gray-600">
