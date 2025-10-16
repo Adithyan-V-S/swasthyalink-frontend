@@ -66,7 +66,7 @@ const DoctorPrescriptions = () => {
       // Check if this is a test user
       if (isTestUser()) {
         // Use mock data for test users
-        setConnectedPatients([
+        const mockPatients = [
           {
             id: "patient1",
             name: "John Smith",
@@ -87,7 +87,12 @@ const DoctorPrescriptions = () => {
             allergies: ["Shellfish"],
             lastVisit: "2024-01-10"
           }
-        ]);
+        ];
+        setConnectedPatients(mockPatients);
+        // Auto-select the first connected patient for a smoother UX
+        if (!selectedPatient && mockPatients.length > 0) {
+          setSelectedPatient(mockPatients[0]);
+        }
         return;
       }
       
@@ -96,17 +101,25 @@ const DoctorPrescriptions = () => {
       // Service may return an array or an object with { patients }
       const rawPatients = Array.isArray(response) ? response : response?.patients;
       if (rawPatients && rawPatients.length >= 0) {
-        const patients = rawPatients.map(patient => ({
-          id: patient.id,
-          name: patient.name,
-          email: patient.email,
-          age: patient.age || 'Not specified',
-          gender: patient.gender || 'Not specified',
-          bloodType: patient.bloodType || 'Not specified',
-          allergies: patient.allergies || [],
-          lastVisit: patient.lastVisit || patient.connectedAt || 'Never'
-        }));
+        const patients = rawPatients.map((patient) => {
+          const normalized = {
+            id: patient.id || patient.patientId || patient.uid,
+            name: patient.name || patient.patientName || patient.fullName || 'Unknown Patient',
+            email: patient.email || patient.patientEmail || 'No email',
+            age: patient.age || 'Not specified',
+            gender: patient.gender || 'Not specified',
+            bloodType: patient.bloodType || 'Not specified',
+            allergies: patient.allergies || [],
+            lastVisit: patient.lastVisit || patient.connectedAt || patient.lastInteraction || 'Never'
+          };
+          return normalized;
+        });
+        console.log('DoctorPrescriptions: Loaded connected patients (normalized):', patients);
         setConnectedPatients(patients);
+        // If none selected yet, auto-select the first available connected patient
+        if (!selectedPatient && patients.length > 0) {
+          setSelectedPatient(patients[0]);
+        }
       } else {
         setConnectedPatients([]);
       }
