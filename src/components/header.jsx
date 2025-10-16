@@ -152,7 +152,7 @@ const Header = () => {
           {isAuthenticated ? (
             <>
               <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <EnhancedNotificationCenter />
                 {/* Profile menu - Hidden for doctors */}
                 {userRole !== 'doctor' && (

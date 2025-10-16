@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Notification Redirect</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .material-icons {
+            font-family: 'Material Icons';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-800 mb-8">Test Notification Redirect</h1>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Test Doctor Connection Request Notification</h2>
+            <div class="space-y-4">
+                <button onclick="testDoctorConnectionNotification()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Create Doctor Connection Request Notification
+                </button>
+                <button onclick="testPrescriptionNotification()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Create Prescription Notification
+                </button>
+                <button onclick="testFamilyChatNotification()" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
+                    Create Family Chat Notification
+                </button>
+                <button onclick="clearTestNotifications()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                    Clear Test Notifications
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">How It Works</h2>
+            <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                <li>Click "Create Doctor Connection Request Notification" above</li>
+                <li>Go to the Patient Dashboard</li>
+                <li>Click on the notification bell in the header</li>
+                <li>Click on the "New Doctor Connection Request" notification</li>
+                <li>You should be automatically redirected to the Doctors section</li>
+                <li><strong>For Family Chat:</strong> Click "Create Family Chat Notification" and go to Family Dashboard</li>
+                <li>Click on the "New message from John" notification</li>
+                <li>You should be automatically redirected to the Family Chat section</li>
+            </ol>
+            
+            <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                <h3 class="font-semibold text-blue-800 mb-2">Expected Behavior:</h3>
+                <ul class="list-disc list-inside text-blue-700 space-y-1">
+                    <li>Notification should appear in the notification dropdown</li>
+                    <li>Clicking doctor notification should redirect to Patient Dashboard → Doctors tab</li>
+                    <li>Clicking family chat notification should redirect to Family Dashboard → Chat tab</li>
+                    <li>You should see the relevant content in the correct section</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function testDoctorConnectionNotification() {
+            const notification = {
+                id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                recipientId: 'x9DFt0G9ZJfkmm4lvPKSNlL9Q293', // Current patient UID
+                senderId: 'ji0uE7aqRUdA4vy2t1NemdIbPCg1', // Doctor UID
+                type: 'doctor_connection_request',
+                title: 'New Doctor Connection Request',
+                message: 'Dr. sachus wants to connect with you',
+                priority: 'high',
+                read: false,
+                deleted: false,
+                timestamp: new Date(),
+                isLocal: true,
+                data: {
+                    doctorId: 'ji0uE7aqRUdA4vy2t1NemdIbPCg1',
+                    doctorName: 'Dr. sachus',
+                    connectionMethod: 'email'
+                }
+            };
+            
+            addLocalNotification(notification);
+            alert('Doctor connection request notification created! Check the notification bell.');
+        }
+
+        function testPrescriptionNotification() {
+            const notification = {
+                id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                recipientId: 'x9DFt0G9ZJfkmm4lvPKSNlL9Q293',
+                senderId: 'ji0uE7aqRUdA4vy2t1NemdIbPCg1',
+                type: 'prescription_received',
+                title: 'New Prescription Received',
+                message: 'You have received a new prescription from Dr. sachus',
+                priority: 'normal',
+                read: false,
+                deleted: false,
+                timestamp: new Date(),
+                isLocal: true
+            };
+            
+            addLocalNotification(notification);
+            alert('Prescription notification created! This should redirect to Prescriptions tab.');
+        }
+
+        function testFamilyChatNotification() {
+            const notification = {
+                id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                recipientId: 'x9DFt0G9ZJfkmm4lvPKSNlL9Q293',
+                senderId: 'family-member-123',
+                type: 'chat_message',
+                title: 'New message from John',
+                message: 'Hey, how are you feeling today?',
+                priority: 'normal',
+                read: false,
+                deleted: false,
+                timestamp: new Date(),
+                isLocal: true,
+                data: {
+                    conversationId: 'conv-123',
+                    senderName: 'John Smith'
+                }
+            };
+            
+            addLocalNotification(notification);
+            alert('Family chat notification created! This should redirect to Family Dashboard Chat.');
+        }
+
+        function addLocalNotification(notification) {
+            const existingNotifications = JSON.parse(localStorage.getItem('localNotifications') || '[]');
+            existingNotifications.push(notification);
+            localStorage.setItem('localNotifications', JSON.stringify(existingNotifications));
+        }
+
+        function clearTestNotifications() {
+            localStorage.removeItem('localNotifications');
+            alert('Test notifications cleared!');
+        }
+    </script>
+</body>
+</html>

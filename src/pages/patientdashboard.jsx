@@ -171,6 +171,43 @@ const PatientDashboard = () => {
     return () => unsubscribe();
   }, []);
 
+  // Check for notification redirect tab
+  useEffect(() => {
+    const checkNotificationRedirect = () => {
+      const redirectTab = localStorage.getItem('patientDashboardTab');
+      if (redirectTab) {
+        console.log('🔔 Notification redirect detected:', redirectTab);
+        
+        // Map tab names to indices
+        const tabMap = {
+          'doctors': 5,
+          'prescriptions': 4,
+          'dashboard': 0,
+          'family': 2,
+          'appointments': 3,
+          'settings': 6,
+          'profile': 7,
+          'game': 8
+        };
+        
+        const tabIndex = tabMap[redirectTab];
+        if (tabIndex !== undefined) {
+          console.log('📍 Redirecting to tab index:', tabIndex);
+          setActiveIdx(tabIndex);
+        }
+        
+        // Clear the redirect flag
+        localStorage.removeItem('patientDashboardTab');
+      }
+    };
+
+    // Check immediately and after a short delay to ensure component is mounted
+    checkNotificationRedirect();
+    const timeoutId = setTimeout(checkNotificationRedirect, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, []);
+
   // Subscribe to real notifications with fallback
   useEffect(() => {
     if (!currentUser) {

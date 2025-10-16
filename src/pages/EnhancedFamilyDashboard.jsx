@@ -99,9 +99,18 @@ const EnhancedFamilyDashboard = () => {
   // Check for tab switching from notifications
   useEffect(() => {
     const savedTab = localStorage.getItem('familyDashboardTab');
+    const openFamilyChat = localStorage.getItem('openFamilyChat');
+    
     if (savedTab !== null) {
       setActiveTab(parseInt(savedTab));
       localStorage.removeItem('familyDashboardTab');
+    }
+    
+    // Check if we need to open family chat specifically
+    if (openFamilyChat === 'true') {
+      console.log('🔔 Opening family chat from notification');
+      setActiveTab(3); // Family Chat tab
+      localStorage.removeItem('openFamilyChat');
     }
   }, []);
 

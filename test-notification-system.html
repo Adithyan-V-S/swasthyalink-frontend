@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification System Test</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .material-icons {
+            font-family: 'Material Icons';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-800 mb-8">Notification System Test</h1>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Test Notification Features</h2>
+            <div class="space-y-4">
+                <button onclick="testEmergencyNotification()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                    Test Emergency Notification
+                </button>
+                <button onclick="testFamilyNotification()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Test Family Notification
+                </button>
+                <button onclick="testChatNotification()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Test Chat Notification
+                </button>
+                <button onclick="testQuotaStatus()" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
+                    Check Quota Status
+                </button>
+                <button onclick="clearLocalNotifications()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                    Clear Local Notifications
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Notification System Improvements</h2>
+            <ul class="space-y-2 text-gray-700">
+                <li class="flex items-center">
+                    <span class="material-icons text-green-500 mr-2">check_circle</span>
+                    Real-time notifications with detailed date/time display
+                </li>
+                <li class="flex items-center">
+                    <span class="material-icons text-green-500 mr-2">check_circle</span>
+                    Emergency option moved before "All" option in layout
+                </li>
+                <li class="flex items-center">
+                    <span class="material-icons text-green-500 mr-2">check_circle</span>
+                    Enlarged notification popup (450px width, 600px height)
+                </li>
+                <li class="flex items-center">
+                    <span class="material-icons text-green-500 mr-2">check_circle</span>
+                    Larger individual notification items with better spacing
+                </li>
+                <li class="flex items-center">
+                    <span class="material-icons text-green-500 mr-2">check_circle</span>
+                    Firebase quota management with local storage fallback
+                </li>
+                <li class="flex items-center">
+                    <span class="material-icons text-green-500 mr-2">check_circle</span>
+                    Improved tab layout with horizontal scrolling
+                </li>
+                <li class="flex items-center">
+                    <span class="material-icons text-green-500 mr-2">check_circle</span>
+                    Enhanced notification bell icon (larger, more prominent)
+                </li>
+            </ul>
+        </div>
+
+        <div id="quotaStatus" class="mt-6 bg-blue-50 rounded-lg p-4 hidden">
+            <h3 class="font-semibold text-blue-800 mb-2">Firebase Quota Status</h3>
+            <div id="quotaDetails" class="text-sm text-blue-700"></div>
+        </div>
+    </div>
+
+    <script>
+        // Test functions
+        function testEmergencyNotification() {
+            const notification = {
+                id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                recipientId: 'test-user',
+                senderId: 'test-sender',
+                type: 'emergency_alert',
+                title: '🚨 Emergency Alert',
+                message: 'This is a test emergency notification with detailed timestamp',
+                priority: 'urgent',
+                read: false,
+                deleted: false,
+                timestamp: new Date(),
+                isLocal: true
+            };
+            
+            addLocalNotification(notification);
+            alert('Emergency notification added! Check the notification bell.');
+        }
+
+        function testFamilyNotification() {
+            const notification = {
+                id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                recipientId: 'test-user',
+                senderId: 'test-sender',
+                type: 'family_request',
+                title: 'New Family Request',
+                message: 'John Doe wants to add you as their family member',
+                priority: 'high',
+                read: false,
+                deleted: false,
+                timestamp: new Date(),
+                isLocal: true
+            };
+            
+            addLocalNotification(notification);
+            alert('Family notification added! Check the notification bell.');
+        }
+
+        function testChatNotification() {
+            const notification = {
+                id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                recipientId: 'test-user',
+                senderId: 'test-sender',
+                type: 'chat_message',
+                title: 'New message',
+                message: 'Hello! This is a test chat message with detailed timestamp',
+                priority: 'normal',
+                read: false,
+                deleted: false,
+                timestamp: new Date(),
+                isLocal: true
+            };
+            
+            addLocalNotification(notification);
+            alert('Chat notification added! Check the notification bell.');
+        }
+
+        function addLocalNotification(notification) {
+            const existingNotifications = JSON.parse(localStorage.getItem('localNotifications') || '[]');
+            existingNotifications.push(notification);
+            localStorage.setItem('localNotifications', JSON.stringify(existingNotifications));
+        }
+
+        function testQuotaStatus() {
+            // Simulate quota status
+            const quotaStatus = {
+                reads: { used: 150, limit: 1000, remaining: 850 },
+                writes: { used: 75, limit: 1000, remaining: 925 },
+                deletes: { used: 5, limit: 100, remaining: 95 }
+            };
+            
+            const quotaDetails = document.getElementById('quotaDetails');
+            quotaDetails.innerHTML = `
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <div class="font-medium">Reads</div>
+                        <div class="text-xs">${quotaStatus.reads.used}/${quotaStatus.reads.limit} (${quotaStatus.reads.remaining} remaining)</div>
+                    </div>
+                    <div>
+                        <div class="font-medium">Writes</div>
+                        <div class="text-xs">${quotaStatus.writes.used}/${quotaStatus.writes.limit} (${quotaStatus.writes.remaining} remaining)</div>
+                    </div>
+                    <div>
+                        <div class="font-medium">Deletes</div>
+                        <div class="text-xs">${quotaStatus.deletes.used}/${quotaStatus.deletes.limit} (${quotaStatus.deletes.remaining} remaining)</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('quotaStatus').classList.remove('hidden');
+        }
+
+        function clearLocalNotifications() {
+            localStorage.removeItem('localNotifications');
+            alert('Local notifications cleared!');
+        }
+    </script>
+</body>
+</html>

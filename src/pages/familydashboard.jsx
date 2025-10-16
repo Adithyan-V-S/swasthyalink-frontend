@@ -65,6 +65,33 @@ const FamilyDashboard = () => {
   const [familyMembers, setFamilyMembers] = useState([]);
   const [conversations, setConversations] = useState([]);
 
+  // Check for notification redirect
+  useEffect(() => {
+    const checkNotificationRedirect = () => {
+      const redirectTab = localStorage.getItem('familyDashboardTab');
+      const openFamilyChat = localStorage.getItem('openFamilyChat');
+      
+      if (redirectTab !== null) {
+        console.log('🔔 Family dashboard redirect detected:', redirectTab);
+        setActiveIdx(parseInt(redirectTab, 10));
+        localStorage.removeItem('familyDashboardTab');
+      }
+      
+      // Check if we need to open family chat specifically
+      if (openFamilyChat === 'true') {
+        console.log('🔔 Opening family chat from notification');
+        setActiveIdx(3); // Family Chat tab
+        localStorage.removeItem('openFamilyChat');
+      }
+    };
+
+    // Check immediately and after a short delay to ensure component is mounted
+    checkNotificationRedirect();
+    const timeoutId = setTimeout(checkNotificationRedirect, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, []);
+
   // Debug logging
   useEffect(() => {
     console.log("FamilyDashboard: Component mounted");
