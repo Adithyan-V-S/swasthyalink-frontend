@@ -80,9 +80,26 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
         if (response.network && response.network.members && response.network.members.length > 0) {
           console.log(`Found ${response.network.members.length} family members`);
           setFamilyMembers(response.network.members);
+          
+          // Update parent component with network stats
+          const emergencyContacts = response.network.members.filter(member => member.isEmergencyContact).length;
+          onUpdate && onUpdate({
+            totalMembers: response.network.members.length,
+            pendingRequests: 0, // This would come from a separate API call
+            emergencyContacts: emergencyContacts,
+            onlineMembers: response.network.members.length // Simplified for now
+          });
         } else {
           console.log("No family members found in network");
           setFamilyMembers([]);
+          
+          // Update parent component with empty stats
+          onUpdate && onUpdate({
+            totalMembers: 0,
+            pendingRequests: 0,
+            emergencyContacts: 0,
+            onlineMembers: 0
+          });
         }
       } else {
         throw new Error(response.error || 'Failed to load network');

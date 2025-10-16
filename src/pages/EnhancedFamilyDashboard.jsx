@@ -105,6 +105,34 @@ const EnhancedFamilyDashboard = () => {
     }
   }, []);
 
+  // Load family network data on component mount to update stats
+  useEffect(() => {
+    const loadFamilyNetworkStats = async () => {
+      if (!currentUser) return;
+      
+      try {
+        const { getFamilyNetwork } = await import('../services/familyService');
+        const response = await getFamilyNetwork(currentUser.uid);
+        
+        if (response.success && response.network) {
+          const members = response.network.members || [];
+          const emergencyContacts = members.filter(member => member.isEmergencyContact).length;
+          
+          setNetworkStats({
+            totalMembers: members.length,
+            pendingRequests: 0, // This would come from a separate API call
+            emergencyContacts: emergencyContacts,
+            onlineMembers: members.length // Simplified for now
+          });
+        }
+      } catch (error) {
+        console.error('Error loading family network stats:', error);
+      }
+    };
+
+    loadFamilyNetworkStats();
+  }, [currentUser]);
+
   // Debug logging
   useEffect(() => {
     console.log("EnhancedFamilyDashboard: Component mounted");
@@ -195,10 +223,14 @@ const EnhancedFamilyDashboard = () => {
     }));
   };
 
-  const handleNetworkUpdate = () => {
-    console.log("Family network updated");
-    // Refresh network stats
-    // In a real app, this would fetch actual stats from the backend
+  const handleNetworkUpdate = (updatedStats) => {
+    console.log("Family network updated", updatedStats);
+    if (updatedStats) {
+      setNetworkStats(updatedStats);
+    } else {
+      // Refresh network stats by fetching from the component
+      // This will be called when the family network is loaded
+    }
   };
 
   const handleNavigateToChat = (member) => {

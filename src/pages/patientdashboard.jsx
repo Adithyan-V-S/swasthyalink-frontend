@@ -196,7 +196,14 @@ const PatientDashboard = () => {
     }
     const familyDocRef = doc(db, 'familyNetworks', currentUser.uid);
     const unsubscribe = onSnapshot(familyDocRef, async (snap) => {
+      console.log('🔍 Family network snapshot for user:', currentUser.uid);
+      console.log('📄 Document exists:', snap.exists());
+      if (snap.exists()) {
+        console.log('📊 Document data:', snap.data());
+      }
+      
       const members = snap.exists() ? (snap.data().members || []) : [];
+      console.log('👥 Raw members array:', members);
       
       // Fetch user photos from Firestore users collection for each member
       const membersWithPhotos = await Promise.all(members.map(async (member) => {
@@ -438,6 +445,34 @@ const PatientDashboard = () => {
     ));
   };
 
+  const handleMigrateFamilyConnections = async () => {
+    try {
+      console.log('🔄 Starting family connections migration...');
+      const response = await fetch('http://localhost:3001/api/family/migrate-connections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('✅ Migration completed successfully!');
+        console.log(`📊 ${result.updatesCount} connections updated`);
+        alert(`Migration completed! ${result.updatesCount} connections updated.`);
+        // Refresh the family members
+        window.location.reload();
+      } else {
+        console.error('❌ Migration failed:', result.error);
+        alert(`Migration failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('💥 Error running migration:', error);
+      alert(`Error running migration: ${error.message}`);
+    }
+  };
+
   const handleAcceptRequest = async (request) => {
     try {
       console.log('✅ Accepting request from:', request.doctor?.name, 'id:', request.id);
@@ -535,6 +570,12 @@ const PatientDashboard = () => {
       <section className="bg-white rounded-xl shadow-lg p-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-indigo-700">Family Members</h2>
+          <button
+            onClick={handleMigrateFamilyConnections}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+          >
+            🔄 Fix Connections
+          </button>
         </div>
         
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
