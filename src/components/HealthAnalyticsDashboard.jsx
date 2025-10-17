@@ -67,7 +67,7 @@ const HealthAnalyticsDashboard = () => {
 
       // Call ML service
       const result = await mlService.getHealthRiskAssessment(healthData);
-      setRiskAssessment(result);
+      setRiskAssessment(result.riskAssessment);
     } catch (err) {
       setError(err.message);
     } finally {

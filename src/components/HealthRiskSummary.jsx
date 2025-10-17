@@ -7,6 +7,16 @@ const HealthRiskSummary = ({ assessment }) => {
 
   const { overallRisk, factorBreakdown, diseaseRisks, recommendations } = assessment;
 
+  // Add defensive checks for required data
+  if (!overallRisk || !overallRisk.level) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-red-800 mb-2">Assessment Error</h3>
+        <p className="text-red-700">Unable to load health risk assessment data. Please try again.</p>
+      </div>
+    );
+  }
+
   const getRiskColor = (level) => {
     switch (level) {
       case 'low': return 'text-green-600 bg-green-100';
@@ -34,26 +44,26 @@ const HealthRiskSummary = ({ assessment }) => {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold text-gray-900">Health Risk Assessment</h3>
           <div className={`px-3 py-1 rounded-full text-sm font-medium ${getRiskColor(overallRisk.level)}`}>
-            {getRiskIcon(overallRisk.level)} {overallRisk.category.description}
+            {getRiskIcon(overallRisk.level)} {overallRisk.category?.description || 'Unknown Risk'}
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="text-center">
             <div className="text-2xl font-bold text-gray-900">
-              {(overallRisk.score * 100).toFixed(1)}%
+              {overallRisk.score ? (overallRisk.score * 100).toFixed(1) : '0.0'}%
             </div>
             <div className="text-sm text-gray-600">Overall Risk Score</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-gray-900 capitalize">
-              {overallRisk.level.replace('-', ' ')}
+              {overallRisk.level ? overallRisk.level.replace('-', ' ') : 'Unknown'}
             </div>
             <div className="text-sm text-gray-600">Risk Level</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-gray-900">
-              {assessment.dataCompleteness}%
+              {assessment.dataCompleteness || 0}%
             </div>
             <div className="text-sm text-gray-600">Data Completeness</div>
           </div>
@@ -61,7 +71,7 @@ const HealthRiskSummary = ({ assessment }) => {
 
         <div className="bg-gray-50 rounded-lg p-4">
           <h4 className="font-semibold text-gray-900 mb-2">Next Steps</h4>
-          <p className="text-gray-700">{overallRisk.category.action}</p>
+          <p className="text-gray-700">{overallRisk.category?.action || 'Please consult with a healthcare provider for personalized recommendations.'}</p>
         </div>
       </div>
 
@@ -69,7 +79,7 @@ const HealthRiskSummary = ({ assessment }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-xl font-bold text-gray-900 mb-4">Risk Factor Analysis</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Object.entries(factorBreakdown).map(([factor, data]) => (
+          {factorBreakdown && Object.entries(factorBreakdown).map(([factor, data]) => (
             <div key={factor} className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-medium text-gray-900 capitalize">
@@ -102,7 +112,7 @@ const HealthRiskSummary = ({ assessment }) => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <h3 className="text-xl font-bold text-gray-900 mb-4">Disease Risk Predictions</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.entries(diseaseRisks).map(([disease, risk]) => (
+          {diseaseRisks && Object.entries(diseaseRisks).map(([disease, risk]) => (
             <div key={disease} className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-medium text-gray-900 capitalize">
@@ -138,7 +148,7 @@ const HealthRiskSummary = ({ assessment }) => {
         <h3 className="text-xl font-bold text-gray-900 mb-4">Personalized Recommendations</h3>
 
         {/* Immediate Actions */}
-        {recommendations.immediate && recommendations.immediate.length > 0 && (
+        {recommendations?.immediate && recommendations.immediate.length > 0 && (
           <div className="mb-6">
             <h4 className="text-lg font-semibold text-red-600 mb-3 flex items-center">
               <span className="mr-2">🚨</span>
@@ -156,7 +166,7 @@ const HealthRiskSummary = ({ assessment }) => {
         )}
 
         {/* Short-term Recommendations */}
-        {recommendations.shortTerm && recommendations.shortTerm.length > 0 && (
+        {recommendations?.shortTerm && recommendations.shortTerm.length > 0 && (
           <div className="mb-6">
             <h4 className="text-lg font-semibold text-orange-600 mb-3 flex items-center">
               <span className="mr-2">📅</span>
@@ -174,7 +184,7 @@ const HealthRiskSummary = ({ assessment }) => {
         )}
 
         {/* Long-term Recommendations */}
-        {recommendations.longTerm && recommendations.longTerm.length > 0 && (
+        {recommendations?.longTerm && recommendations.longTerm.length > 0 && (
           <div className="mb-6">
             <h4 className="text-lg font-semibold text-blue-600 mb-3 flex items-center">
               <span className="mr-2">🎯</span>
@@ -192,7 +202,7 @@ const HealthRiskSummary = ({ assessment }) => {
         )}
 
         {/* Lifestyle Recommendations */}
-        {recommendations.lifestyle && recommendations.lifestyle.length > 0 && (
+        {recommendations?.lifestyle && recommendations.lifestyle.length > 0 && (
           <div>
             <h4 className="text-lg font-semibold text-green-600 mb-3 flex items-center">
               <span className="mr-2">🌱</span>
