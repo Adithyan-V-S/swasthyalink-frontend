@@ -1,7 +1,9 @@
 import { getAuth } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 
-const API_BASE = 'http://localhost:3001/api/patient-doctor';
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api/patient-doctor`
+  : '/api/patient-doctor';
 
 /**
  * Search for patients by query

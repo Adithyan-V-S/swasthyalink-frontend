@@ -91,11 +91,11 @@ export const createNotification = async ({
 const notificationCache = new Map();
 const CACHE_DURATION = 30000; // 30 seconds
 
-// Firebase quota management
+// Firebase quota management - EMERGENCY MODE ACTIVE
 const QUOTA_LIMITS = {
-  DAILY_READS: 1000,
-  DAILY_WRITES: 1000,
-  DAILY_DELETES: 100
+  DAILY_READS: 0, // Disable reads to prevent quota usage
+  DAILY_WRITES: 0, // Disable writes to prevent quota usage
+  DAILY_DELETES: 0 // Disable deletes to prevent quota usage
 };
 
 const quotaUsage = {

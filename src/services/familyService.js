@@ -94,18 +94,29 @@ export const getFamilyNetwork = async (userUid) => {
   }
 };
 
-// Remove family member (QUOTA PROTECTION - DISABLED)
+// Disable family member (soft delete - preserves data)
 export const removeFamilyMember = async (userUid, memberUid) => {
-  // EMERGENCY: Disable Firebase operations to prevent quota usage
-  console.warn('🚨 QUOTA EXCEEDED - Family member removal disabled to prevent Firebase writes');
-  console.log('📝 Would have removed family member:', { userUid, memberUid });
-  
-  // Return mock success
-  return {
-    success: true,
-    message: 'Family member removed successfully (mock mode)',
-    disabled: true
-  };
+  try {
+    console.log('🔒 Disabling family member (soft delete):', { userUid, memberUid });
+    
+    // Import the real function from firebaseFamilyService
+    const { removeFamilyMember: firebaseRemoveMember } = await import('./firebaseFamilyService');
+    
+    // Call the soft delete function
+    await firebaseRemoveMember(userUid, memberUid);
+    
+    return {
+      success: true,
+      message: 'Family member disabled successfully (data preserved)',
+      softDelete: true
+    };
+  } catch (error) {
+    console.error('Error disabling family member:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 };
 
 // Update member access level (QUOTA PROTECTION - DISABLED)

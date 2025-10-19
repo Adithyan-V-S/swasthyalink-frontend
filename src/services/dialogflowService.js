@@ -2,7 +2,9 @@ import { v4 as uuidv4 } from 'uuid';
 
 class DialogflowService {
   constructor() {
-    this.apiUrl = 'http://localhost:3001/api/chatbot'; // Backend API endpoint
+    this.apiUrl = import.meta.env.VITE_API_BASE_URL
+      ? `${import.meta.env.VITE_API_BASE_URL}/api/chatbot`
+      : '/api/chatbot';
     this.useLocalFallback = true; // Set to true to use local fallback when backend is unavailable
   }
 

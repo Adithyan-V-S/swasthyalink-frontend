@@ -9,25 +9,59 @@ export const PRESENCE_STATES = {
 };
 
 // Update user presence
-export const updateUserPresence = async (userId, status = PRESENCE_STATES.ONLINE) => {
-  // Check if this is a test user (mock authentication)
-  const isTestUser = localStorage.getItem('testUser') !== null;
+// Throttle controls to reduce Firestore writes
+const WRITE_MIN_INTERVAL_MS = 5 * 60 * 1000; // at most one write every 5 minutes per user/status
+let lastPresenceWrite = {
+  userId: null,
+  status: null,
+  timestampMs: 0,
+};
 
-  if (isTestUser) {
-    console.log('🧪 Using test user - skipping Firestore operations for updateUserPresence');
-    return { success: true };
+export const updateUserPresence = async (userId, status = PRESENCE_STATES.ONLINE) => {
+  // Check if this is a test user (mock authentication) or writes explicitly disabled
+  const isTestUser = localStorage.getItem('testUser') !== null;
+  const presenceWritesDisabled = localStorage.getItem('disablePresenceWrites') === 'true';
+
+  if (isTestUser || presenceWritesDisabled) {
+    if (presenceWritesDisabled) {
+      console.warn('⚠️ Presence writes disabled via localStorage flag `disablePresenceWrites`');
+    }
+    return { success: true, skipped: true };
+  }
+
+  // Throttle repeated writes with same status
+  const now = Date.now();
+  if (
+    lastPresenceWrite.userId === userId &&
+    lastPresenceWrite.status === status &&
+    now - lastPresenceWrite.timestampMs < WRITE_MIN_INTERVAL_MS
+  ) {
+    // Skip write
+    return { success: true, throttled: true };
   }
 
   try {
     const presenceRef = doc(db, 'presence', userId);
-    await setDoc(presenceRef, {
-      status: status,
-      lastSeen: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
+    await setDoc(
+      presenceRef,
+      {
+        status,
+        lastSeen: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    lastPresenceWrite = { userId, status, timestampMs: now };
     return { success: true };
   } catch (error) {
-    console.error('Error updating presence:', error);
+    // If quota or resource exhausted, allow client to switch off writes
+    const message = String(error?.message || '');
+    if (message.includes('quota') || message.includes('resource-exhausted')) {
+      console.error('🚫 Presence write blocked due to quota; set `localStorage.disablePresenceWrites=true` to pause writes');
+    } else {
+      console.error('Error updating presence:', error);
+    }
     return { success: false, error: error.message };
   }
 };
@@ -175,7 +209,8 @@ class PresenceManager {
     
     this.AWAY_THRESHOLD = 5 * 60 * 1000; // 5 minutes
     this.OFFLINE_THRESHOLD = 30 * 60 * 1000; // 30 minutes
-    this.HEARTBEAT_INTERVAL = 60 * 1000; // 1 minute
+    // Increase heartbeat interval to reduce Firestore writes
+    this.HEARTBEAT_INTERVAL = 5 * 60 * 1000; // 5 minutes
     
     this.init();
   }
@@ -183,7 +218,7 @@ class PresenceManager {
   init() {
     if (!this.userId) return;
 
-    // Set user online initially
+    // Set user online initially (throttled inside update function)
     setUserOnline(this.userId);
 
     // Set up activity listeners
@@ -213,7 +248,7 @@ class PresenceManager {
         clearTimeout(this.offlineTimeout);
       }
       
-      // Set user online if not already
+      // Set user online if not already (throttled)
       setUserOnline(this.userId);
       
       // Set away timer
@@ -256,7 +291,8 @@ class PresenceManager {
 
   setupBeforeUnloadListener() {
     window.addEventListener('beforeunload', () => {
-      setUserOffline(this.userId);
+      // Avoid extra write on unload; rely on clients to update later
+      // setUserOffline(this.userId);
     });
   }
 
@@ -266,10 +302,7 @@ class PresenceManager {
     if (this.offlineTimeout) clearTimeout(this.offlineTimeout);
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     
-    // Set user offline
-    if (this.userId) {
-      setUserOffline(this.userId);
-    }
+    // Avoid forcing an offline write during destroy to reduce writes
   }
 }
 
@@ -278,6 +311,14 @@ let globalPresenceManager = null;
 
 // Initialize presence tracking for a user
 export const initializePresenceTracking = (userId) => {
+  // If writes are disabled or this is a test user, skip initializing presence entirely
+  const presenceWritesDisabled = localStorage.getItem('disablePresenceWrites') === 'true';
+  const isTestUser = localStorage.getItem('testUser') !== null;
+  if (presenceWritesDisabled || isTestUser) {
+    console.warn('⚠️ Skipping presence initialization (writes disabled or test user)');
+    return () => {};
+  }
+
   if (globalPresenceManager) {
     globalPresenceManager.destroy();
   }

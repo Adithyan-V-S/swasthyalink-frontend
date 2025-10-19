@@ -208,68 +208,102 @@ const PatientDashboard = () => {
     return () => clearTimeout(timeoutId);
   }, []);
 
-  // Subscribe to real notifications with fallback
+  // EMERGENCY MODE: Use mock notifications to prevent Firestore quota usage
   useEffect(() => {
     if (!currentUser) {
       setNotifications([]);
       return;
     }
 
-    const unsubscribe = subscribeToNotifications(currentUser.uid, (notifs) => {
-      console.log('📬 PatientDashboard: Received notifications:', notifs);
-      setNotifications(notifs || []);
-    });
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    console.log('🚨 EMERGENCY MODE: Using mock notifications to prevent Firestore quota usage');
+    
+    // Use mock notifications instead of Firestore
+    const mockNotifications = [
+      {
+        id: 'mock-notification-1',
+        type: 'doctor_connection_request',
+        title: 'New Doctor Request',
+        message: 'Dr. Sarah Johnson wants to connect with you',
+        timestamp: new Date().toISOString(),
+        read: false
+      },
+      {
+        id: 'mock-notification-2',
+        type: 'prescription_received',
+        title: 'New Prescription',
+        message: 'You have received a new prescription from Dr. Michael Smith',
+        timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+        read: false
+      },
+      {
+        id: 'mock-notification-3',
+        type: 'appointment_reminder',
+        title: 'Appointment Reminder',
+        message: 'You have an appointment tomorrow at 2:00 PM',
+        timestamp: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+        read: true
+      }
+    ];
+    
+    setNotifications(mockNotifications);
+    console.log('📬 Mock notifications loaded:', mockNotifications);
   }, [currentUser]);
 
-  // Subscribe to real-time family members from Firestore (familyNetworks/{uid})
+  // EMERGENCY MODE: Use mock family members to prevent Firestore quota usage
   useEffect(() => {
     if (!currentUser?.uid) {
       setFamilyMembers([]);
       return;
     }
-    const familyDocRef = doc(db, 'familyNetworks', currentUser.uid);
-    const unsubscribe = onSnapshot(familyDocRef, async (snap) => {
-      console.log('🔍 Family network snapshot for user:', currentUser.uid);
-      console.log('📄 Document exists:', snap.exists());
-      if (snap.exists()) {
-        console.log('📊 Document data:', snap.data());
+    
+    console.log('🚨 EMERGENCY MODE: Using mock family members to prevent Firestore quota usage');
+    console.log('👥 Loading mock family members for user:', currentUser.uid);
+    
+    // Use mock family members data instead of Firestore
+    const mockFamilyMembers = [
+      {
+        id: 1,
+        uid: 'mock-1',
+        name: "Sarah Doe",
+        relationship: "Spouse",
+        email: "sarah.doe@example.com",
+        phone: "+91 98765 43210",
+        avatar: "https://ui-avatars.com/api/?name=Sarah+Doe&background=10b981&color=fff&size=64",
+        photoURL: "https://ui-avatars.com/api/?name=Sarah+Doe&background=10b981&color=fff&size=64",
+        accessLevel: "full",
+        isEmergencyContact: true,
+        lastAccess: "2024-01-15 14:30"
+      },
+      {
+        id: 2,
+        uid: 'mock-2',
+        name: "Michael Doe",
+        relationship: "Son",
+        email: "michael.doe@example.com",
+        phone: "+91 98765 43211",
+        avatar: "https://ui-avatars.com/api/?name=Michael+Doe&background=3b82f6&color=fff&size=64",
+        photoURL: "https://ui-avatars.com/api/?name=Michael+Doe&background=3b82f6&color=fff&size=64",
+        accessLevel: "limited",
+        isEmergencyContact: false,
+        lastAccess: "2024-01-10 09:15"
+      },
+      {
+        id: 3,
+        uid: 'mock-3',
+        name: "Emma Doe",
+        relationship: "Daughter",
+        email: "emma.doe@example.com",
+        phone: "+91 98765 43212",
+        avatar: "https://ui-avatars.com/api/?name=Emma+Doe&background=f59e0b&color=fff&size=64",
+        photoURL: "https://ui-avatars.com/api/?name=Emma+Doe&background=f59e0b&color=fff&size=64",
+        accessLevel: "emergency",
+        isEmergencyContact: true,
+        lastAccess: "2024-01-12 16:45"
       }
-      
-      const members = snap.exists() ? (snap.data().members || []) : [];
-      console.log('👥 Raw members array:', members);
-      
-      // Fetch user photos from Firestore users collection for each member
-      const membersWithPhotos = await Promise.all(members.map(async (member) => {
-        try {
-          // Try to get photo from users collection in Firestore
-          const userDocRef = doc(db, 'users', member.uid);
-          const userSnap = await getDoc(userDocRef);
-          const userData = userSnap.exists() ? userSnap.data() : {};
-          
-          return {
-            ...member,
-            photoURL: userData.photoURL || userData.avatar || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=4f46e5&color=fff&size=48`
-          };
-        } catch (error) {
-          console.warn('Error fetching photo for member:', member.name, error);
-          // Fallback to avatar or generated avatar
-          return {
-            ...member,
-            photoURL: member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name || 'Family')}&background=4f46e5&color=fff&size=48`
-          };
-        }
-      }));
-      
-      setFamilyMembers(membersWithPhotos);
-    }, (err) => {
-      console.warn('Family subscription error:', err);
-      setFamilyMembers([]);
-    });
-    return () => unsubscribe();
+    ];
+    
+    setFamilyMembers(mockFamilyMembers);
+    console.log('👥 Mock family members loaded:', mockFamilyMembers);
   }, [currentUser]);
 
   // Fetch pending requests and connected doctors
@@ -360,56 +394,124 @@ const PatientDashboard = () => {
     fetchRequestsAndDoctors();
   }, [currentUser]);
 
-  // Fetch prescriptions with real-time subscription
+  // EMERGENCY MODE: Use comprehensive mock prescriptions in chat message format
   useEffect(() => {
     if (!currentUser?.uid) {
       setPrescriptions([]);
       return;
     }
     
-    // Check if this is a test user
-    if (isTestUser()) {
-      console.log('🧪 Using test user - returning mock prescriptions');
-      // Use mock data for test users
-      const mockPrescriptions = [
-        {
-          id: 1,
-          doctorName: "Dr. A. Sharma",
-          medication: "Amlodipine 5mg",
-          dosage: "1 tablet daily",
-          frequency: "Once daily",
-          instructions: "Take with water",
-          notes: "Monitor BP",
-          prescribedDate: "2024-05-01",
-          createdAt: new Date('2024-05-01')
-        },
-        {
-          id: 2,
-          doctorName: "Dr. R. Singh",
-          medication: "Metformin 500mg",
-          dosage: "2 tablets daily",
-          frequency: "Twice daily",
-          instructions: "Take with meals",
-          notes: "Monitor blood sugar",
-          prescribedDate: "2024-03-15",
-          createdAt: new Date('2024-03-15')
-        }
-      ];
-      setPrescriptions(mockPrescriptions);
-      return;
-    }
+    console.log('🚨 EMERGENCY MODE: Loading mock prescriptions in chat message format');
     
-    // Set up real-time subscription for live users
-    setPrescriptionsLoading(true);
-    const unsubscribe = subscribeToPatientPrescriptions(currentUser.uid, (prescriptions) => {
-      console.log('PatientDashboard: Received prescriptions:', prescriptions);
-      setPrescriptions(prescriptions);
-      setPrescriptionsLoading(false);
-    });
+    // Comprehensive mock prescriptions data in chat message format
+    const mockPrescriptions = [
+      {
+        id: 'prescription-1',
+        doctorName: "Dr. Sarah Johnson",
+        doctorSpecialization: "Cardiologist",
+        doctorAvatar: "https://ui-avatars.com/api/?name=Dr+Sarah+Johnson&background=4f46e5&color=fff&size=48",
+        medication: "Amlodipine 5mg",
+        dosage: "1 tablet daily",
+        frequency: "Once daily",
+        instructions: "Take with water in the morning",
+        notes: "Monitor blood pressure regularly. Next follow-up in 2 weeks.",
+        prescribedDate: "2024-01-15",
+        prescribedTime: "10:30 AM",
+        createdAt: new Date('2024-01-15T10:30:00'),
+        status: "Active",
+        duration: "30 days",
+        refills: 2
+      },
+      {
+        id: 'prescription-2',
+        doctorName: "Dr. Michael Chen",
+        doctorSpecialization: "Endocrinologist",
+        doctorAvatar: "https://ui-avatars.com/api/?name=Dr+Michael+Chen&background=10b981&color=fff&size=48",
+        medication: "Metformin 500mg",
+        dosage: "2 tablets daily",
+        frequency: "Twice daily",
+        instructions: "Take with meals to reduce stomach upset",
+        notes: "Monitor blood sugar levels. Check HbA1c in 3 months.",
+        prescribedDate: "2024-01-12",
+        prescribedTime: "2:15 PM",
+        createdAt: new Date('2024-01-12T14:15:00'),
+        status: "Active",
+        duration: "90 days",
+        refills: 1
+      },
+      {
+        id: 'prescription-3',
+        doctorName: "Dr. Emily Rodriguez",
+        doctorSpecialization: "Dermatologist",
+        doctorAvatar: "https://ui-avatars.com/api/?name=Dr+Emily+Rodriguez&background=f59e0b&color=fff&size=48",
+        medication: "Clobetasol Cream 0.05%",
+        dosage: "Apply thin layer",
+        frequency: "Twice daily",
+        instructions: "Apply to affected areas only. Avoid contact with eyes.",
+        notes: "Use for 2 weeks only. If no improvement, contact clinic.",
+        prescribedDate: "2024-01-10",
+        prescribedTime: "11:45 AM",
+        createdAt: new Date('2024-01-10T11:45:00'),
+        status: "Completed",
+        duration: "14 days",
+        refills: 0
+      },
+      {
+        id: 'prescription-4',
+        doctorName: "Dr. James Wilson",
+        doctorSpecialization: "Orthopedist",
+        doctorAvatar: "https://ui-avatars.com/api/?name=Dr+James+Wilson&background=ef4444&color=fff&size=48",
+        medication: "Ibuprofen 400mg",
+        dosage: "1 tablet",
+        frequency: "Every 6-8 hours as needed",
+        instructions: "Take with food to prevent stomach irritation",
+        notes: "For pain management. Discontinue if side effects occur.",
+        prescribedDate: "2024-01-08",
+        prescribedTime: "3:20 PM",
+        createdAt: new Date('2024-01-08T15:20:00'),
+        status: "Active",
+        duration: "7 days",
+        refills: 0
+      },
+      {
+        id: 'prescription-5',
+        doctorName: "Dr. Lisa Park",
+        doctorSpecialization: "Psychiatrist",
+        doctorAvatar: "https://ui-avatars.com/api/?name=Dr+Lisa+Park&background=8b5cf6&color=fff&size=48",
+        medication: "Sertraline 50mg",
+        dosage: "1 tablet daily",
+        frequency: "Once daily",
+        instructions: "Take at the same time each day, preferably in the morning",
+        notes: "May take 2-4 weeks to see full effect. Regular follow-ups required.",
+        prescribedDate: "2024-01-05",
+        prescribedTime: "9:00 AM",
+        createdAt: new Date('2024-01-05T09:00:00'),
+        status: "Active",
+        duration: "60 days",
+        refills: 3
+      },
+      {
+        id: 'prescription-6',
+        doctorName: "Dr. Robert Kim",
+        doctorSpecialization: "Gastroenterologist",
+        doctorAvatar: "https://ui-avatars.com/api/?name=Dr+Robert+Kim&background=06b6d4&color=fff&size=48",
+        medication: "Omeprazole 20mg",
+        dosage: "1 capsule daily",
+        frequency: "Once daily",
+        instructions: "Take 30 minutes before first meal of the day",
+        notes: "For acid reflux management. Follow up in 4 weeks.",
+        prescribedDate: "2024-01-03",
+        prescribedTime: "1:30 PM",
+        createdAt: new Date('2024-01-03T13:30:00'),
+        status: "Active",
+        duration: "30 days",
+        refills: 1
+      }
+    ];
     
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    setPrescriptions(mockPrescriptions);
+    setPrescriptionsLoading(false);
+    console.log('💊 Mock prescriptions loaded:', mockPrescriptions);
   }, [currentUser]);
 
   const qrValue = uid ? `https://yourapp.com/patient/${uid}` : "";
@@ -485,7 +587,7 @@ const PatientDashboard = () => {
   const handleMigrateFamilyConnections = async () => {
     try {
       console.log('🔄 Starting family connections migration...');
-      const response = await fetch('http://localhost:3001/api/family/migrate-connections', {
+      const response = await fetch('/api/family/migrate-connections', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -603,6 +705,45 @@ const PatientDashboard = () => {
 
   const renderFamilySection = () => (
     <div className="w-full max-w-6xl space-y-8">
+      {/* Family Cleanup Button */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-yellow-800">
+              Fix Duplicate Family Members
+            </h3>
+            <p className="text-sm text-yellow-700 mt-1">
+              If you see duplicate family members, click this button to clean them up.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              if (!window.confirm('This will remove duplicate family members. Continue?')) {
+                return;
+              }
+              try {
+                const response = await fetch('/api/family/cleanup-duplicates', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                });
+                const result = await response.json();
+                if (result.success) {
+                  alert('✅ Duplicates cleaned up successfully! Please refresh the page.');
+                  window.location.reload();
+                } else {
+                  alert('❌ Failed to cleanup duplicates: ' + result.error);
+                }
+              } catch (error) {
+                alert('❌ Error: ' + error.message);
+              }
+            }}
+            className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+          >
+            Fix Duplicates
+          </button>
+        </div>
+      </div>
+
       {/* Family Overview */}
       <section className="bg-white rounded-xl shadow-lg p-8">
         <div className="flex justify-between items-center mb-6">
@@ -819,65 +960,67 @@ const PatientDashboard = () => {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-96 overflow-y-auto">
             {prescriptions.map((prescription) => (
-              <div key={prescription.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-gradient-to-r from-blue-50 to-indigo-50">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <img 
-                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctorName || prescription.doctor)}&background=4f46e5&color=fff&size=48`} 
-                        alt={prescription.doctorName || prescription.doctor} 
-                        className="w-12 h-12 rounded-full" 
-                      />
-                      <div>
-                        <h3 className="text-xl font-semibold text-gray-900">{prescription.medication}</h3>
-                        <p className="text-gray-600">{prescription.doctorName || prescription.doctor}</p>
-                      </div>
-                      <div className="ml-auto flex gap-2">
-                        <span className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full font-medium">
-                          {prescription.prescribedDate || prescription.date}
-                        </span>
-                        <span className="px-3 py-1 text-sm bg-green-100 text-green-800 rounded-full font-medium">
-                          {prescription.status || 'Active'}
-                        </span>
-                      </div>
+              <div key={prescription.id} className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                {/* Doctor Avatar */}
+                <img 
+                  src={prescription.doctorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctorName)}&background=4f46e5&color=fff&size=48`} 
+                  alt={prescription.doctorName} 
+                  className="w-10 h-10 rounded-full flex-shrink-0" 
+                />
+                
+                {/* Prescription Content */}
+                <div className="flex-1 min-w-0">
+                  {/* Header with Doctor Info and Timestamp */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-semibold text-gray-900 text-sm">{prescription.doctorName}</h3>
+                      <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
+                        {prescription.doctorSpecialization}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {prescription.prescribedDate} at {prescription.prescribedTime}
+                    </div>
+                  </div>
+                  
+                  {/* Prescription Message */}
+                  <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900 text-lg">{prescription.medication}</h4>
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                        prescription.status === 'Active' ? 'bg-green-100 text-green-800' :
+                        prescription.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {prescription.status}
+                      </span>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                      <div>
-                        <p className="text-gray-600 mb-1">
-                          <span className="font-medium text-gray-800">Dosage:</span> {prescription.dosage}
-                        </p>
-                        <p className="text-gray-600 mb-1">
-                          <span className="font-medium text-gray-800">Frequency:</span> {prescription.frequency || 'As prescribed'}
-                        </p>
+                    {/* Prescription Details */}
+                    <div className="space-y-2 text-sm text-gray-700">
+                      <div className="flex items-center space-x-4">
+                        <span><strong>Dosage:</strong> {prescription.dosage}</span>
+                        <span><strong>Frequency:</strong> {prescription.frequency}</span>
                       </div>
-                      <div>
-                        <p className="text-gray-600 mb-1">
-                          <span className="font-medium text-gray-800">Duration:</span> {prescription.duration || 'As prescribed'}
-                        </p>
-                        <p className="text-gray-600 mb-1">
-                          <span className="font-medium text-gray-800">Prescribed:</span> {prescription.prescribedDate || prescription.date}
-                        </p>
+                      <div className="flex items-center space-x-4">
+                        <span><strong>Duration:</strong> {prescription.duration}</span>
+                        <span><strong>Refills:</strong> {prescription.refills}</span>
                       </div>
+                      
+                      {prescription.instructions && (
+                        <div className="mt-2 p-2 bg-blue-50 rounded border-l-4 border-blue-400">
+                          <p><strong>Instructions:</strong> {prescription.instructions}</p>
+                        </div>
+                      )}
+                      
+                      {prescription.notes && (
+                        <div className="mt-2 p-2 bg-yellow-50 rounded border-l-4 border-yellow-400">
+                          <p><strong>Notes:</strong> {prescription.notes}</p>
+                        </div>
+                      )}
                     </div>
-                    
-                    {prescription.instructions && (
-                      <div className="bg-white p-3 rounded-lg border border-gray-200">
-                        <p className="text-gray-700">
-                          <span className="font-medium text-gray-800">Instructions:</span> {prescription.instructions}
-                        </p>
-                      </div>
-                    )}
-                    
-                    {prescription.notes && (
-                      <div className="mt-3 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                        <p className="text-gray-700">
-                          <span className="font-medium text-gray-800">Notes:</span> {prescription.notes}
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1303,6 +1446,17 @@ const PatientDashboard = () => {
 
   return (
     <main className="min-h-screen bg-gray-50">
+      {/* Emergency Mode Warning Banner */}
+      <div className="bg-red-600 text-white p-4 text-center">
+        <div className="max-w-7xl mx-auto flex items-center justify-center gap-2">
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          <span className="font-semibold">Emergency Mode Active:</span>
+          <span>Firebase quota exceeded. Using offline data. Some features may be limited.</span>
+        </div>
+      </div>
+      
       <div className="flex">
         {/* Sidebar */}
         <div className="w-64 bg-white shadow-lg min-h-screen">

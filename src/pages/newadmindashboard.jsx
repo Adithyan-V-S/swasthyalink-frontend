@@ -55,7 +55,7 @@ const NewAdminDashboard = () => {
       }
 
       const session = JSON.parse(adminSession);
-      const response = await fetch('http://localhost:3001/api/admin/doctors', {
+      const response = await fetch('/api/admin/doctors', {
         headers: {
           'Authorization': `Bearer ${session.token || 'preset-admin-token'}`
         }
@@ -104,7 +104,7 @@ const NewAdminDashboard = () => {
         description: formData.description || ''
       };
 
-      const response = await fetch('http://localhost:3001/api/doctors/register', {
+      const response = await fetch('/api/doctors/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -174,7 +174,7 @@ const NewAdminDashboard = () => {
         description: formData.description || ''
       };
 
-      const response = await fetch(`http://localhost:3001/api/admin/doctors/${editingDoctor.id}`, {
+      const response = await fetch(`/api/admin/doctors/${editingDoctor.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -215,7 +215,7 @@ const NewAdminDashboard = () => {
       }
 
       const session = JSON.parse(adminSession);
-      const response = await fetch(`http://localhost:3001/api/admin/doctors/${doctorId}/disable`, {
+      const response = await fetch(`/api/admin/doctors/${doctorId}/disable`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.token || 'preset-admin-token'}`

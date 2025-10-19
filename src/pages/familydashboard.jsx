@@ -201,7 +201,11 @@ const FamilyDashboard = () => {
   const getNotificationBadges = () => {
     const uid = currentUser?.uid;
     // Chat unread from Firestore conversations
-    const chatUnread = uid ? (conversations || []).reduce((sum, c) => sum + (c?.unread?.[uid] || 0), 0) : 0;
+    const chatUnread = uid ? (conversations || []).reduce((sum, c) => {
+      const unreadCount = c?.unread?.[uid] || 0;
+      console.log(`Conversation ${c?.id}: unread for ${uid} = ${unreadCount}`);
+      return sum + unreadCount;
+    }, 0) : 0;
 
     // Notifications: unread and not deleted
     const unreadNotifications = notifications.filter(n => !n.read && !n.deleted);
@@ -213,6 +217,11 @@ const FamilyDashboard = () => {
       notifTotal: notifications.length,
       notifUnread: unreadNotifications.length,
       familyRequestNotifications: familyRequestNotifications.length,
+      conversations: conversations.map(c => ({
+        id: c.id,
+        unread: c.unread,
+        lastMessage: c.lastMessage
+      }))
     });
 
     return {
@@ -264,6 +273,16 @@ const FamilyDashboard = () => {
           <div className="bg-gradient-to-br from-indigo-500 to-blue-500 text-white rounded-xl px-4 py-3">
             <div className="text-xs opacity-80">Unread Chats</div>
             <div className="text-2xl font-bold">{badges.chat}</div>
+            <button 
+              onClick={() => {
+                console.log('🔄 Refreshing conversations...');
+                // Force re-render by updating state
+                setConversations([...conversations]);
+              }}
+              className="text-xs opacity-70 hover:opacity-100 mt-1"
+            >
+              Refresh
+            </button>
           </div>
           <div className="bg-gradient-to-br from-emerald-500 to-teal-500 text-white rounded-xl px-4 py-3">
             <div className="text-xs opacity-80">Members</div>
@@ -589,6 +608,9 @@ const FamilyDashboard = () => {
 
   // Get dynamic notification badges
   const badges = getNotificationBadges();
+  
+  // Debug: Log badge calculation every time
+  console.log('🔔 Current badges:', badges);
 
   const sidebarLinks = [
     {

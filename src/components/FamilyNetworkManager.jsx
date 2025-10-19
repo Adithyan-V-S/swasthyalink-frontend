@@ -63,24 +63,32 @@ const FamilyNetworkManager = ({ onUpdate }) => {
   };
 
   const handleRemoveMember = async (memberEmail) => {
+    if (!confirm(`Are you sure you want to disable this family member? This will hide them from your view but preserve all data for security purposes.`)) {
+      return;
+    }
+
     setProcessingId(memberEmail);
     
     try {
-      // For now, just update the UI without actually removing from Firestore
-      // We'll implement this functionality later
+      // Call the soft delete function
+      const result = await removeFamilyMember(currentUser.uid, memberEmail);
       
-      // Update local state
-      setFamilyMembers(prev => prev.filter(member => member.email !== memberEmail));
-      
-      // Notify parent component
-      if (onUpdate) onUpdate();
-      
-      // Show a message that this is just UI update
-      alert("This is a UI-only update. The member will reappear on refresh until we implement the full functionality.");
+      if (result.success) {
+        // Update local state to remove from view
+        setFamilyMembers(prev => prev.filter(member => member.email !== memberEmail));
+        
+        // Notify parent component
+        if (onUpdate) onUpdate();
+        
+        alert("Family member disabled successfully. Data preserved for security.");
+        console.log('✅ Family member disabled successfully (data preserved)');
+      } else {
+        throw new Error(result.error || 'Failed to disable family member');
+      }
       
     } catch (error) {
-      console.error('Error removing family member:', error);
-      setError('Failed to remove family member. Please try again.');
+      console.error('Error disabling family member:', error);
+      setError('Failed to disable family member. Please try again.');
     } finally {
       setProcessingId(null);
     }
@@ -371,7 +379,7 @@ const FamilyNetworkManager = ({ onUpdate }) => {
                   loading={processingId === member.email}
                   disabled={processingId !== null}
                 >
-                  Remove
+                  Disable
                 </Button>
               </div>
             </div>

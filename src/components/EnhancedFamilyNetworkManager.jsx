@@ -164,26 +164,31 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
   };
 
   const handleRemoveMember = async (memberEmail, memberName) => {
-    if (!confirm(`Are you sure you want to remove ${memberName} from your family network?`)) {
+    if (!confirm(`Are you sure you want to disable ${memberName} from your family network? This will hide them from your view but preserve all data for security purposes.`)) {
       return;
     }
 
     setProcessingId(memberEmail);
     
     try {
-      // Update local state immediately
-      setFamilyMembers(prev => prev.filter(member => member.email !== memberEmail));
+      // Call the soft delete function
+      const result = await removeFamilyMember(currentUser.uid, memberEmail);
       
-      // TODO: Implement backend removal
-      // await removeFamilyMember(memberEmail);
-      
-      if (onUpdate) onUpdate();
-      
-      alert(`${memberName} has been removed from your family network.`);
+      if (result.success) {
+        // Update local state to remove from view
+        setFamilyMembers(prev => prev.filter(member => member.email !== memberEmail));
+        
+        if (onUpdate) onUpdate();
+        
+        alert(`${memberName} has been disabled from your family network. Data preserved for security.`);
+        console.log('✅ Family member disabled successfully (data preserved)');
+      } else {
+        throw new Error(result.error || 'Failed to disable family member');
+      }
       
     } catch (error) {
-      console.error('Error removing family member:', error);
-      setError('Failed to remove family member. Please try again.');
+      console.error('Error disabling family member:', error);
+      setError('Failed to disable family member. Please try again.');
       loadFamilyNetwork();
     } finally {
       setProcessingId(null);
@@ -373,8 +378,9 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
                   onClick={() => handleRemoveMember(member.email, member.name)}
                   loading={processingId === member.email}
                   disabled={processingId !== null}
-                  leftIcon={<span className="material-icons">delete</span>}
+                  leftIcon={<span className="material-icons">visibility_off</span>}
                 >
+                  Disable
                 </Button>
               </div>
             </div>

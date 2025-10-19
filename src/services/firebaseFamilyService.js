@@ -379,7 +379,38 @@ export const getFamilyNetwork = async (userUid) => {
     }
 
     const networkData = networkDoc.data();
-    return networkData.members || [];
+    const members = networkData.members || [];
+    
+    // Deduplicate members by email and UID to prevent duplicates
+    // Filter out disabled members first
+    const activeMembers = members.filter(member => !member.isDisabled);
+    
+    const uniqueMembers = activeMembers.reduce((acc, member) => {
+      const existingMember = acc.find(m =>
+        (m.email && member.email && m.email === member.email) ||
+        (m.uid && member.uid && m.uid === member.uid)
+      );
+
+      if (!existingMember) {
+        acc.push(member);
+      } else {
+        // If duplicate found, keep the one with more complete data
+        const mergedMember = {
+          ...existingMember,
+          ...member,
+          // Prefer non-null values
+          name: member.name || existingMember.name,
+          email: member.email || existingMember.email,
+          uid: member.uid || existingMember.uid,
+          relationship: member.relationship || existingMember.relationship
+        };
+        const index = acc.findIndex(m => m === existingMember);
+        acc[index] = mergedMember;
+      }
+      return acc;
+    }, []);
+
+    return uniqueMembers;
   } catch (error) {
     console.error('Error getting family network:', error);
     throw error;
@@ -387,9 +418,9 @@ export const getFamilyNetwork = async (userUid) => {
 };
 
 /**
- * Remove a member from family network
+ * Disable a member from family network (soft delete - preserves data)
  * @param {string} userUid - Current user's UID
- * @param {string} memberEmail - Email of member to remove
+ * @param {string} memberEmail - Email of member to disable
  * @returns {Promise<boolean>} - Success status
  */
 export const removeFamilyMember = async (userUid, memberEmail) => {
@@ -404,21 +435,31 @@ export const removeFamilyMember = async (userUid, memberEmail) => {
 
     const networkData = networkDocSnap.data();
 
-    // Find the member to remove
-    const memberToRemove = networkData.members.find(member => member.email === memberEmail);
+    // Find the member to disable
+    const memberToDisable = networkData.members.find(member => member.email === memberEmail);
 
-    if (!memberToRemove) {
+    if (!memberToDisable) {
       throw new Error('Member not found in family network');
     }
 
-    // Remove member from user's network (rewrite members array for reliable update)
-    const filteredMembers = (networkData.members || []).filter(m => m.email !== memberEmail);
+    // Update member to disabled status instead of removing
+    const updatedMembers = (networkData.members || []).map(member => 
+      member.email === memberEmail 
+        ? { 
+            ...member, 
+            isDisabled: true, 
+            disabledAt: new Date().toISOString(),
+            disabledBy: userUid
+          }
+        : member
+    );
+
     await updateDoc(networkRef, {
-      members: filteredMembers,
+      members: updatedMembers,
       updatedAt: serverTimestamp()
     });
 
-    // Find the other user's UID by email
+    // Also disable the reverse connection
     const usersQuery = query(
       usersCollection,
       where('email', '==', memberEmail)
@@ -436,23 +477,29 @@ export const removeFamilyMember = async (userUid, memberEmail) => {
       if (otherNetworkDoc.exists()) {
         const otherNetworkData = otherNetworkDoc.data();
 
-        // Find current user in the other network by UID
-        const currentUserInOtherNetwork = otherNetworkData.members.find(
-          member => member.uid === userUid
+        // Find current user in the other network by UID and disable
+        const updatedOtherMembers = (otherNetworkData.members || []).map(member =>
+          member.uid === userUid
+            ? {
+                ...member,
+                isDisabled: true,
+                disabledAt: new Date().toISOString(),
+                disabledBy: memberUid
+              }
+            : member
         );
 
-        if (currentUserInOtherNetwork) {
-          await updateDoc(otherNetworkRef, {
-            members: arrayRemove(currentUserInOtherNetwork),
-            updatedAt: serverTimestamp()
-          });
-        }
+        await updateDoc(otherNetworkRef, {
+          members: updatedOtherMembers,
+          updatedAt: serverTimestamp()
+        });
       }
     }
 
+    console.log(`✅ Family member ${memberEmail} disabled (soft delete) - data preserved in Firestore`);
     return true;
   } catch (error) {
-    console.error('Error removing family member:', error);
+    console.error('Error disabling family member:', error);
     throw error;
   }
 };

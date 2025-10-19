@@ -227,20 +227,20 @@ const AdminDashboard = () => {
         // Fetch from Firestore if authenticated
         console.log("Fetching data from Firestore...");
 
-        // Fetch doctors
+        // Fetch doctors (filter out disabled ones)
         const doctorsSnapshot = await getDocs(collection(db, "users"));
         const doctorsData = doctorsSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(user => user.role === "doctor");
+          .filter(user => user.role === "doctor" && !user.isDisabled);
 
         console.log("Fetched doctors from Firestore:", doctorsData);
         setDoctors(doctorsData);
 
-        // Fetch patients
+        // Fetch patients (filter out disabled ones)
         const patientsSnapshot = await getDocs(collection(db, "users"));
         const patientsData = patientsSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(user => user.role === "patient");
+          .filter(user => user.role === "patient" && !user.isDisabled);
 
         console.log("Fetched patients from Firestore:", patientsData);
         setPatients(patientsData);
@@ -255,14 +255,16 @@ const AdminDashboard = () => {
         const pharmacyData = pharmacySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPharmacy(pharmacyData);
 
-        // Fetch all users for user management
+        // Fetch all users for user management (filter out disabled ones)
         const usersSnapshot = await getDocs(collection(db, "users"));
-        const usersData = usersSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          authMethod: doc.data().uid ? 'Google' : 'Email',
-          createdAt: doc.data().createdAt || 'Unknown'
-        }));
+        const usersData = usersSnapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            authMethod: doc.data().uid ? 'Google' : 'Email',
+            createdAt: doc.data().createdAt || 'Unknown'
+          }))
+          .filter(user => !user.isDisabled);
         console.log("Fetched all users from Firestore:", usersData);
         setUsers(usersData);
 
@@ -670,14 +672,18 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteDoctor = async (doctorId) => {
-    if (window.confirm("Are you sure you want to delete this doctor?")) {
+    if (window.confirm("Are you sure you want to disable this doctor? This will hide them from the system but preserve all data for security purposes.")) {
       try {
         const isPresetAdmin = localStorage.getItem('presetAdmin') === 'true';
 
         if (auth.currentUser) {
-          // Delete from Firestore
-          await deleteDoc(doc(db, "users", doctorId));
-          console.log('Doctor deleted successfully from Firestore');
+          // Disable doctor instead of deleting (soft delete - preserves data)
+          await updateDoc(doc(db, "users", doctorId), {
+            isDisabled: true,
+            disabledAt: new Date().toISOString(),
+            disabledBy: auth.currentUser.uid
+          });
+          console.log('Doctor disabled successfully from Firestore (data preserved)');
         } else if (isPresetAdmin) {
           // Delete from localStorage
           const mockDoctors = JSON.parse(localStorage.getItem('mockDoctors') || '[]');

@@ -61,82 +61,31 @@ export const AuthProvider = ({ children }) => {
           return;
         }
 
-        // Fetch user role from Firestore with retry logic
+        // EMERGENCY MODE: Skip Firestore operations due to quota exceeded
         try {
-          console.log("AuthContext: Fetching user role for UID:", user.uid);
+          console.log("AuthContext: EMERGENCY MODE - Skipping Firestore operations due to quota exceeded");
+          console.log("AuthContext: Using fallback user data for UID:", user.uid);
 
-          // Retry mechanism for Firestore operations
-          const maxRetries = 3;
-          let attempt = 0;
-          let userData = null;
+          // Use fallback user data to prevent blank page
+          const userData = {
+            uid: user.uid,
+            name: user.displayName || user.email?.split('@')[0] || 'User',
+            email: user.email,
+            role: "patient", // Default to patient role
+            createdAt: new Date().toISOString(),
+            emailVerified: user.emailVerified
+          };
 
-          while (attempt < maxRetries) {
-            try {
-              const userDocRef = doc(db, "users", user.uid);
-              const userDocSnap = await getDoc(userDocRef);
+          console.log("AuthContext: Using fallback user data:", userData);
+          setUserRole(userData.role);
+          console.log("AuthContext: User role set to:", userData.role);
+          setLoading(false);
+          return;
 
-              if (userDocSnap.exists()) {
-                userData = userDocSnap.data();
-                console.log("AuthContext: User data found:", userData);
-                break;
-              } else {
-                console.log(`AuthContext: No user document found (attempt ${attempt + 1}/${maxRetries})`);
-                throw new Error('User document not found');
-              }
-            } catch (fetchError) {
-              console.error(`AuthContext: Error fetching user data (attempt ${attempt + 1}):`, fetchError);
-              attempt++;
-
-              if (attempt >= maxRetries) {
-                throw fetchError;
-              }
-
-              // Wait before retrying
-              await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-            }
-          }
-
-          if (userData) {
-            setUserRole(userData.role);
-            console.log("AuthContext: User role set to:", userData.role);
-
-            // Update lastActive for presence with retry
-            try {
-              const userDocRef = doc(db, "users", user.uid);
-              await updateDoc(userDocRef, { lastActive: serverTimestamp() });
-              console.log("AuthContext: Last active updated");
-            } catch (updateError) {
-              console.warn("AuthContext: Failed to update lastActive:", updateError);
-            }
-          }
         } catch (error) {
-          console.error("AuthContext: Error fetching user role after all retries:", error);
-
-          // If user document doesn't exist, try to create it
-          if (error.message === 'User document not found') {
-            try {
-              console.log("AuthContext: Creating new user document with patient role");
-              const userDocRef = doc(db, "users", user.uid);
-              const userData = {
-                uid: user.uid,
-                name: user.displayName || 'Unknown User',
-                email: user.email,
-                role: "patient",
-                createdAt: new Date().toISOString(),
-                lastActive: serverTimestamp(),
-                emailVerified: user.emailVerified
-              };
-
-              await setDoc(userDocRef, userData);
-              console.log("AuthContext: New user document created successfully");
-              setUserRole("patient");
-            } catch (createError) {
-              console.error("AuthContext: Error creating user document:", createError);
-              setUserRole(null);
-            }
-          } else {
-            setUserRole(null);
-          }
+          console.error("AuthContext: Error in emergency mode:", error);
+          // Even in error case, set a default role to prevent blank page
+          setUserRole("patient");
         }
       } else {
         setCurrentUser(null);

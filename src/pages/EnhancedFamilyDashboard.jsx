@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import FamilyChat from "../components/FamilyChat";
-// Temporarily use mock services while fixing Firebase
+// Use real Firebase-backed services for notifications and chat
 import { 
   subscribeToNotifications, 
-  subscribeToConversations,
   NOTIFICATION_TYPES 
-} from '../services/mockNotificationService';
+} from '../services/notificationService';
+import { subscribeToConversations } from '../services/chatService';
 
 import GeminiChatbot from "../components/GeminiChatbot";
 import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";
