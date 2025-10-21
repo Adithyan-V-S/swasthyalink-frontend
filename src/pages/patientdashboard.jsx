@@ -249,61 +249,66 @@ const PatientDashboard = () => {
     console.log('📬 Mock notifications loaded:', mockNotifications);
   }, [currentUser]);
 
-  // EMERGENCY MODE: Use mock family members to prevent Firestore quota usage
+  // Load family members from real API
   useEffect(() => {
-    if (!currentUser?.uid) {
-      setFamilyMembers([]);
-      return;
-    }
-    
-    console.log('🚨 EMERGENCY MODE: Using mock family members to prevent Firestore quota usage');
-    console.log('👥 Loading mock family members for user:', currentUser.uid);
-    
-    // Use mock family members data instead of Firestore
-    const mockFamilyMembers = [
-      {
-        id: 1,
-        uid: 'mock-1',
-        name: "Sarah Doe",
-        relationship: "Spouse",
-        email: "sarah.doe@example.com",
-        phone: "+91 98765 43210",
-        avatar: "https://ui-avatars.com/api/?name=Sarah+Doe&background=10b981&color=fff&size=64",
-        photoURL: "https://ui-avatars.com/api/?name=Sarah+Doe&background=10b981&color=fff&size=64",
-        accessLevel: "full",
-        isEmergencyContact: true,
-        lastAccess: "2024-01-15 14:30"
-      },
-      {
-        id: 2,
-        uid: 'mock-2',
-        name: "Michael Doe",
-        relationship: "Son",
-        email: "michael.doe@example.com",
-        phone: "+91 98765 43211",
-        avatar: "https://ui-avatars.com/api/?name=Michael+Doe&background=3b82f6&color=fff&size=64",
-        photoURL: "https://ui-avatars.com/api/?name=Michael+Doe&background=3b82f6&color=fff&size=64",
-        accessLevel: "limited",
-        isEmergencyContact: false,
-        lastAccess: "2024-01-10 09:15"
-      },
-      {
-        id: 3,
-        uid: 'mock-3',
-        name: "Emma Doe",
-        relationship: "Daughter",
-        email: "emma.doe@example.com",
-        phone: "+91 98765 43212",
-        avatar: "https://ui-avatars.com/api/?name=Emma+Doe&background=f59e0b&color=fff&size=64",
-        photoURL: "https://ui-avatars.com/api/?name=Emma+Doe&background=f59e0b&color=fff&size=64",
-        accessLevel: "emergency",
-        isEmergencyContact: true,
-        lastAccess: "2024-01-12 16:45"
+    const loadFamilyMembers = async () => {
+      if (!currentUser?.uid) {
+        setFamilyMembers([]);
+        return;
       }
-    ];
+      
+      console.log('👥 Loading family members from Firestore for user:', currentUser.uid);
+      console.log('👥 Current user object:', currentUser);
+      console.log('👥 Current user UID type:', typeof currentUser.uid);
+      console.log('👥 Current user UID value:', currentUser.uid);
+      
+      try {
+        const token = await currentUser.getIdToken();
+        console.log('🔑 Got Firebase token for family members:', token.substring(0, 20) + '...');
+        
+        console.log('🔍 About to make API call for family members...');
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://swasthyalink-backend-v2.onrender.com';
+        console.log('🌐 Making API call to:', `${API_BASE}/api/family/network?uid=${currentUser.uid}`);
+        
+        // Add timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const response = await fetch(`${API_BASE}/api/family/network?uid=${currentUser.uid}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        console.log('📡 API response status:', response.status);
+        console.log('📡 API response ok:', response.ok);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('✅ Family members fetched from API:', data);
+        
+        if (data.success && data.network) {
+          console.log('👥 Real family members loaded:', data.network);
+          setFamilyMembers(data.network);
+        } else {
+          console.log('⚠️ No family members found in API response');
+          setFamilyMembers([]);
+        }
+      } catch (error) {
+        console.error('❌ Failed to load family members:', error);
+        setFamilyMembers([]);
+      }
+    };
     
-    setFamilyMembers(mockFamilyMembers);
-    console.log('👥 Mock family members loaded:', mockFamilyMembers);
+    loadFamilyMembers();
   }, [currentUser]);
 
   // Fetch pending requests and connected doctors
