@@ -334,7 +334,22 @@ export const getConnectedDoctors = async (uid) => {
     }
 
     const data = await response.json();
-    return data.doctors || [];
+    console.log('🔍 Raw connected doctors API response:', data);
+    
+    // Extract doctor data from nested structure
+    const doctors = (data.doctors || []).map(relationship => ({
+      id: relationship.id,
+      name: relationship.doctor?.name || 'Unknown Doctor',
+      specialization: relationship.doctor?.specialization || 'General',
+      email: relationship.doctor?.email || 'No email',
+      phone: relationship.doctor?.phone || 'No phone',
+      permissions: relationship.permissions || {},
+      connectedAt: relationship.createdAt,
+      status: relationship.status
+    }));
+    
+    console.log('🔍 Processed connected doctors:', doctors);
+    return doctors;
   } catch (error) {
     console.error('Error fetching connected doctors:', error);
     throw error;
