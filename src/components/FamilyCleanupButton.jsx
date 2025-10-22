@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 const FamilyCleanupButton = () => {
   const [isCleaning, setIsCleaning] = useState(false);
   const [message, setMessage] = useState('');
+  const { user } = useAuth();
 
   const handleCleanup = async () => {
+    if (!user?.uid) {
+      setMessage('❌ User not authenticated');
+      return;
+    }
+
     if (!window.confirm('This will remove duplicate family members. Continue?')) {
       return;
     }
@@ -18,12 +25,13 @@ const FamilyCleanupButton = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ uid: user.uid }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        setMessage('✅ Duplicates cleaned up successfully! Please refresh the page.');
+        setMessage(`✅ Duplicates cleaned up successfully! Removed ${result.duplicatesRemoved || 0} duplicates. Please refresh the page.`);
       } else {
         setMessage('❌ Failed to cleanup duplicates: ' + result.error);
       }

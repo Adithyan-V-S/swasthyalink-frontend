@@ -10,7 +10,7 @@ import PatientProfileModal from "../components/PatientProfileModal";
 import DoctorPrescriptions from "./DoctorPrescriptions";
 
 const DoctorDashboard = () => {
-  const { currentUser, userRole } = useAuth();
+  const { currentUser, userRole, userData } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [profile, setProfile] = useState({
     name: "",
@@ -41,6 +41,9 @@ const DoctorDashboard = () => {
 
   useEffect(() => {
     console.log('Doctor Dashboard: AuthContext currentUser:', currentUser);
+    console.log('Doctor Dashboard: AuthContext userData:', userData);
+    console.log('Doctor Dashboard: userData.name:', userData?.name);
+    console.log('Doctor Dashboard: Complete userData:', JSON.stringify(userData, null, 2));
     
     // Check if we have a valid user (either Firebase user or test user)
     if (currentUser && currentUser.uid) {
@@ -55,7 +58,7 @@ const DoctorDashboard = () => {
       console.log('Doctor Dashboard: User needs to sign in again');
       setNotification('Please sign in again to access the doctor dashboard.');
     }
-  }, [currentUser]);
+  }, [currentUser, userData]);
 
   const setupNotifications = () => {
     if (!currentUser?.uid) return;
@@ -128,16 +131,19 @@ const DoctorDashboard = () => {
       const isTestUser = localStorage.getItem('testUser') !== null;
       console.log('Doctor Dashboard: Is test user:', isTestUser);
 
-      // TODO: Fetch doctor profile from backend
-      // For now, use simulated data
-      setProfile({
-        name: "Dr. John Smith",
-        specialization: "Cardiology",
-        license: "LIC123456",
-        experience: "10 years",
-        description: "Experienced cardiologist",
-        phone: "+1234567890",
-      });
+      // Use actual user data from Firestore
+      console.log('Doctor Dashboard: userData from AuthContext:', userData);
+      const profileData = {
+        name: userData?.name || currentUser.displayName || currentUser.email?.split('@')[0] || "Dr. User",
+        specialization: userData?.specialization || "General Medicine",
+        license: userData?.license || "LIC123456",
+        experience: "5 years",
+        description: "Experienced doctor",
+        phone: userData?.phone || "+1234567890",
+      };
+      console.log('Doctor Dashboard: profileData created:', profileData);
+      
+      setProfile(profileData);
 
       // Use fallback data for now
       setPatients([
@@ -285,6 +291,7 @@ const DoctorDashboard = () => {
       // Create connection request via service
       const result = await createConnectionRequest({
         patientId,
+        doctorId: currentUser.uid,
         connectionMethod: 'qr',
         message: `Dr. ${profile.name} wants to connect with you via QR code scan.`
       });
@@ -306,6 +313,7 @@ const DoctorDashboard = () => {
       // Create connection request via service with email method
       const result = await createConnectionRequest({
         patientEmail: email,
+        doctorId: currentUser.uid,
         connectionMethod: 'email',
         message: `Dr. ${profile.name} wants to connect with you via email invitation.`
       });
@@ -325,6 +333,7 @@ const DoctorDashboard = () => {
           try {
             const retryResult = await createConnectionRequest({
               patientEmail: email,
+              doctorId: currentUser.uid,
               connectionMethod: 'email',
               message: `Dr. ${profile.name} wants to connect with you via email invitation.`
             });
@@ -349,6 +358,7 @@ const DoctorDashboard = () => {
       // Create connection request via service with OTP method
       const result = await createConnectionRequest({
         patientPhone: phone,
+        doctorId: currentUser.uid,
         connectionMethod: 'otp',
         message: `Dr. ${profile.name} wants to connect with you via phone verification.`
       });
@@ -431,6 +441,7 @@ const DoctorDashboard = () => {
     try {
       const result = await createConnectionRequest({
         patientId: patient.id,
+        doctorId: currentUser.uid,
         connectionMethod: 'email',
         message: `Dr. ${profile.name} would like to connect with you to provide medical care.`
       });

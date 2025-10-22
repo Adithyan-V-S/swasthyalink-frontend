@@ -91,11 +91,16 @@ export const createNotification = async ({
 const notificationCache = new Map();
 const CACHE_DURATION = 30000; // 30 seconds
 
-// Firebase quota management - EMERGENCY MODE ACTIVE
+// Firebase quota management - CONSERVATIVE MODE (Updated: 2025-10-21 18:45)
+console.log('🚀 NOTIFICATION SERVICE: Loading CONSERVATIVE MODE with quota limits:', {
+  reads: 50,
+  writes: 20,
+  deletes: 10
+});
 const QUOTA_LIMITS = {
-  DAILY_READS: 0, // Disable reads to prevent quota usage
-  DAILY_WRITES: 0, // Disable writes to prevent quota usage
-  DAILY_DELETES: 0 // Disable deletes to prevent quota usage
+  DAILY_READS: 50, // Allow limited reads for essential operations
+  DAILY_WRITES: 20, // Allow limited writes for critical operations
+  DAILY_DELETES: 10 // Allow limited deletes for cleanup
 };
 
 const quotaUsage = {
@@ -116,7 +121,7 @@ const resetQuotaIfNeeded = () => {
   }
 };
 
-// Check if quota is exceeded
+// Check if quota is exceeded - CACHE BUST VERSION 2
 const checkQuota = (operation) => {
   resetQuotaIfNeeded();
   
@@ -211,13 +216,18 @@ export const subscribeToNotifications = (userId, callback) => {
     
     callback(localNotifications);
     
-    // Set up interval to check for new local notifications
+    // Set up interval to check for new local notifications (reduced frequency)
     const interval = setInterval(() => {
       const updatedNotifications = JSON.parse(localStorage.getItem('localNotifications') || '[]')
         .filter(notif => notif.recipientId === userId && !notif.deleted)
         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      callback(updatedNotifications);
-    }, 5000); // Check every 5 seconds
+      
+      // Only call callback if notifications actually changed
+      if (JSON.stringify(updatedNotifications) !== JSON.stringify(notificationCache.get(userId))) {
+        notificationCache.set(userId, updatedNotifications);
+        callback(updatedNotifications);
+      }
+    }, 30000); // Check every 30 seconds instead of 5
     
     return () => clearInterval(interval);
   }
@@ -244,7 +254,13 @@ export const subscribeToNotifications = (userId, callback) => {
         return timeB - timeA;
       });
     
-    callback(allNotifications);
+    // Only call callback if notifications actually changed
+    const cacheKey = `notifications_${userId}`;
+    const cachedNotifications = notificationCache.get(cacheKey);
+    if (JSON.stringify(allNotifications) !== JSON.stringify(cachedNotifications)) {
+      notificationCache.set(cacheKey, allNotifications);
+      callback(allNotifications);
+    }
   }, (error) => {
     console.error('subscribeToNotifications error:', error);
     // Fallback to local storage on error

@@ -14,6 +14,8 @@ import EnhancedFamilyRequestManager from "../components/EnhancedFamilyRequestMan
 import EnhancedFamilyNetworkManager from "../components/EnhancedFamilyNetworkManager";
 import FamilyNotificationSystem from "../components/FamilyNotificationSystem";
 import FamilyStatusIndicator from "../components/FamilyStatusIndicator";
+import FileViewer from "../components/FileViewer";
+import FileUpload from "../components/FileUpload";
 // import NotificationManager from "../components/NotificationManager";
 // import NotificationTest from "../components/NotificationTest";
 
@@ -86,6 +88,7 @@ const EnhancedFamilyDashboard = () => {
   const [emergencyAccessExpiry, setEmergencyAccessExpiry] = useState(null);
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -231,6 +234,17 @@ const EnhancedFamilyDashboard = () => {
       pendingRequests: prev.pendingRequests + 1
     }));
   };
+
+  // Expose add family member function globally for child components
+  useEffect(() => {
+    window.triggerAddFamilyMember = () => {
+      setShowAddMember(true);
+    };
+    
+    return () => {
+      delete window.triggerAddFamilyMember;
+    };
+  }, []);
 
   const handleNetworkUpdate = (updatedStats) => {
     console.log("Family network updated", updatedStats);
@@ -698,6 +712,25 @@ const EnhancedFamilyDashboard = () => {
         );
       case 4: // Health Records
         return renderHealthRecords();
+      case 5: // File Storage
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">File Storage</h2>
+                <p className="text-gray-600 mt-1">Store and manage your medical documents and files</p>
+              </div>
+              <button
+                onClick={() => setShowFileUpload(true)}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2"
+              >
+                <span className="material-icons text-sm">cloud_upload</span>
+                <span>Upload Files</span>
+              </button>
+            </div>
+            <FileViewer />
+          </div>
+        );
       default:
         return renderOverview();
     }
@@ -733,6 +766,11 @@ const EnhancedFamilyDashboard = () => {
       label: "Health Records",
       icon: <span className="material-icons text-lg">medical_services</span>,
       description: "Shared records"
+    },
+    {
+      label: "File Storage",
+      icon: <span className="material-icons text-lg">folder</span>,
+      description: "Store documents"
     },
   ];
 
@@ -831,6 +869,16 @@ const EnhancedFamilyDashboard = () => {
         isOpen={showAddMember}
         onClose={() => setShowAddMember(false)}
         onAdd={handleAddFamilyMember}
+      />
+
+      {/* File Upload Modal */}
+      <FileUpload
+        isOpen={showFileUpload}
+        onClose={() => setShowFileUpload(false)}
+        onUpload={(uploadedFiles) => {
+          console.log('Files uploaded:', uploadedFiles);
+          setShowFileUpload(false);
+        }}
       />
     </main>
   );

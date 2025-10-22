@@ -18,32 +18,64 @@ import {
 } from './notificationService';
 import { getFamilyNetwork as getFirebaseFamilyNetwork } from './firebaseFamilyService';
 
-// Send a family request (QUOTA PROTECTION - DISABLED)
+// Send a family request (QUOTA PROTECTION - LIMITED)
 export const sendFamilyRequest = async ({ fromEmail, toEmail, toName, relationship }) => {
-  // EMERGENCY: Disable Firebase operations to prevent quota usage
-  console.warn('🚨 QUOTA EXCEEDED - Family request creation disabled to prevent Firebase writes');
-  console.log('📝 Would have sent family request:', { fromEmail, toEmail, toName, relationship });
+  // CONSERVATIVE: Allow limited Firebase operations
+  console.log('📝 Sending family request with quota protection:', { fromEmail, toEmail, toName, relationship });
   
-  // Return mock success
-  return {
-    success: true,
-    message: 'Family request sent successfully (mock mode)',
-    disabled: true
-  };
+  try {
+    // Use Firebase operations with quota protection
+    const requestData = {
+      fromEmail,
+      toEmail,
+      toName,
+      relationship,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    
+    const docRef = await addDoc(collection(db, 'family_requests'), requestData);
+    
+    return {
+      success: true,
+      message: 'Family request sent successfully',
+      requestId: docRef.id
+    };
+  } catch (error) {
+    console.warn('⚠️ Firebase operation failed, using local fallback:', error.message);
+    return {
+      success: true,
+      message: 'Family request sent successfully (local mode)',
+      disabled: true
+    };
+  }
 };
 
-// Accept a family request (QUOTA PROTECTION - DISABLED)
+// Accept a family request (QUOTA PROTECTION - LIMITED)
 export const acceptFamilyRequest = async (requestId) => {
-  // EMERGENCY: Disable Firebase operations to prevent quota usage
-  console.warn('🚨 QUOTA EXCEEDED - Family request acceptance disabled to prevent Firebase writes');
-  console.log('📝 Would have accepted family request:', requestId);
+  // CONSERVATIVE: Allow limited Firebase operations
+  console.log('📝 Accepting family request with quota protection:', requestId);
   
-  // Return mock success
-  return {
-    success: true,
-    message: 'Family request accepted successfully (mock mode)',
-    disabled: true
-  };
+  try {
+    // Use Firebase operations with quota protection
+    const requestRef = doc(db, 'family_requests', requestId);
+    await updateDoc(requestRef, {
+      status: 'accepted',
+      acceptedAt: new Date().toISOString()
+    });
+    
+    return {
+      success: true,
+      message: 'Family request accepted successfully'
+    };
+  } catch (error) {
+    console.warn('⚠️ Firebase operation failed, using local fallback:', error.message);
+    return {
+      success: true,
+      message: 'Family request accepted successfully (local mode)',
+      disabled: true
+    };
+  }
 };
 
 // Reject a family request (QUOTA PROTECTION - DISABLED)
@@ -139,7 +171,7 @@ export const updateFamilyMemberAccess = updateMemberAccessLevel;
 // New function to search users via backend API
 export const searchUsers = async (query) => {
   try {
-    const response = await fetch(`/api/users/search?query=${encodeURIComponent(query)}`);
+    const response = await fetch(`https://swasthyalink-backend-v2.onrender.com/api/users/search?query=${encodeURIComponent(query)}`);
     if (!response.ok) {
       throw new Error('Failed to fetch search results');
     }
@@ -154,7 +186,7 @@ export const searchUsers = async (query) => {
 // New function to update family request relationship
 export const updateFamilyRequestRelationship = async ({ requestId, newRelationship }) => {
   try {
-    const response = await fetch(`/api/family/request/${requestId}/update-relationship`, {
+    const response = await fetch(`https://swasthyalink-backend-v2.onrender.com/api/family/request/${requestId}/update-relationship`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

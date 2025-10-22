@@ -3,7 +3,7 @@ import { auth } from '../firebaseConfig';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? `${import.meta.env.VITE_API_BASE_URL}/api/patient-doctor`
-  : '/api/patient-doctor';
+  : 'https://swasthyalink-backend-v2.onrender.com/api/patient-doctor';
 
 /**
  * Search for patients by query

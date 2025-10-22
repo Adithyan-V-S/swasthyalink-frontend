@@ -3,7 +3,8 @@ class GeminiService {
   }
 
   async sendMessage(message, conversationId = null) {
-    const response = await fetch('/api/gemini', {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://swasthyalink-backend-v2.onrender.com';
+    const response = await fetch(`${API_BASE}/api/gemini`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

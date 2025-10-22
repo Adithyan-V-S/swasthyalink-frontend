@@ -15,6 +15,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [userData, setUserData] = useState(null); // Store Firestore user data
   const [loading, setLoading] = useState(true);
   const [isPresetAdmin, setIsPresetAdmin] = useState(false);
 
@@ -61,35 +62,66 @@ export const AuthProvider = ({ children }) => {
           return;
         }
 
-        // EMERGENCY MODE: Skip Firestore operations due to quota exceeded
+        // Try to fetch user data from Firestore first
         try {
-          console.log("AuthContext: EMERGENCY MODE - Skipping Firestore operations due to quota exceeded");
-          console.log("AuthContext: Using fallback user data for UID:", user.uid);
-
-          // Use fallback user data to prevent blank page
-          const userData = {
-            uid: user.uid,
-            name: user.displayName || user.email?.split('@')[0] || 'User',
-            email: user.email,
-            role: "patient", // Default to patient role
-            createdAt: new Date().toISOString(),
-            emailVerified: user.emailVerified
-          };
-
-          console.log("AuthContext: Using fallback user data:", userData);
-          setUserRole(userData.role);
-          console.log("AuthContext: User role set to:", userData.role);
-          setLoading(false);
-          return;
-
+          console.log("AuthContext: Fetching user data from Firestore for UID:", user.uid);
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            console.log("AuthContext: User data from Firestore:", userData);
+            console.log("AuthContext: User name from Firestore:", userData.name);
+            console.log("AuthContext: Complete userData object:", JSON.stringify(userData, null, 2));
+            setUserData(userData); // Store the Firestore user data
+            setUserRole(userData.role || "patient");
+            console.log("AuthContext: User role set to:", userData.role);
+          } else {
+            console.log("AuthContext: No user document found, using default role");
+            setUserData(null);
+            setUserRole("patient");
+          }
         } catch (error) {
-          console.error("AuthContext: Error in emergency mode:", error);
-          // Even in error case, set a default role to prevent blank page
-          setUserRole("patient");
+          console.error("AuthContext: Error fetching user data from Firestore:", error);
+          
+          // Check if it's a quota exceeded error
+          if (error.message && error.message.includes('quota')) {
+            console.log("AuthContext: CONSERVATIVE MODE - Firebase quota exceeded, using pattern matching");
+            
+            // Try to determine role from email pattern as fallback
+            let userRole = "patient"; // Default role
+            
+            if (user.email) {
+              if (user.email.includes('@swasthyalink.com') && user.email.startsWith('doctor')) {
+                userRole = "doctor";
+                console.log("AuthContext: Doctor pattern detected from email");
+              } else if (user.email.includes('admin') || user.email.includes('administrator')) {
+                userRole = "admin";
+                console.log("AuthContext: Admin pattern detected from email");
+              } else if (user.email.includes('family')) {
+                userRole = "family";
+                console.log("AuthContext: Family pattern detected from email");
+              }
+            }
+            
+            setUserRole(userRole);
+            console.log("AuthContext: Emergency mode - User role set to:", userRole);
+            // Create fallback user data for emergency mode
+            setUserData({
+              name: user.email?.split('@')[0] || 'User',
+              email: user.email,
+              role: userRole
+            });
+          } else {
+            // For other errors, default to patient
+            console.log("AuthContext: Other error, defaulting to patient role");
+            setUserData(null);
+            setUserRole("patient");
+          }
         }
       } else {
         setCurrentUser(null);
         setUserRole(null);
+        setUserData(null);
       }
       setLoading(false);
     });
@@ -194,6 +226,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     userRole: getUserRole(),
+    userData, // Add userData to context
     isAuthenticated: isAuthenticated(),
     isEmailVerified: isEmailVerified(),
     isPresetAdmin,

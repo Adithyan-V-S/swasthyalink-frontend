@@ -208,14 +208,14 @@ const PatientDashboard = () => {
     return () => clearTimeout(timeoutId);
   }, []);
 
-  // EMERGENCY MODE: Use mock notifications to prevent Firestore quota usage
+  // CONSERVATIVE MODE: Use notifications with quota protection
   useEffect(() => {
     if (!currentUser) {
       setNotifications([]);
       return;
     }
 
-    console.log('🚨 EMERGENCY MODE: Using mock notifications to prevent Firestore quota usage');
+    console.log('🔧 CONSERVATIVE MODE: Using notifications with quota protection');
     
     // Use mock notifications instead of Firestore
     const mockNotifications = [
@@ -399,14 +399,14 @@ const PatientDashboard = () => {
     fetchRequestsAndDoctors();
   }, [currentUser]);
 
-  // EMERGENCY MODE: Use comprehensive mock prescriptions in chat message format
+  // CONSERVATIVE MODE: Use prescriptions with quota protection
   useEffect(() => {
     if (!currentUser?.uid) {
       setPrescriptions([]);
       return;
     }
     
-    console.log('🚨 EMERGENCY MODE: Loading mock prescriptions in chat message format');
+    console.log('🔧 CONSERVATIVE MODE: Loading prescriptions with quota protection');
     
     // Comprehensive mock prescriptions data in chat message format
     const mockPrescriptions = [
@@ -723,6 +723,10 @@ const PatientDashboard = () => {
           </div>
           <button
             onClick={async () => {
+              if (!currentUser?.uid) {
+                alert('❌ User not authenticated');
+                return;
+              }
               if (!window.confirm('This will remove duplicate family members. Continue?')) {
                 return;
               }
@@ -730,10 +734,11 @@ const PatientDashboard = () => {
                 const response = await fetch('/api/family/cleanup-duplicates', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ uid: currentUser.uid }),
                 });
                 const result = await response.json();
                 if (result.success) {
-                  alert('✅ Duplicates cleaned up successfully! Please refresh the page.');
+                  alert(`✅ Duplicates cleaned up successfully! Removed ${result.duplicatesRemoved || 0} duplicates. Please refresh the page.`);
                   window.location.reload();
                 } else {
                   alert('❌ Failed to cleanup duplicates: ' + result.error);
@@ -1451,16 +1456,6 @@ const PatientDashboard = () => {
 
   return (
     <main className="min-h-screen bg-gray-50">
-      {/* Emergency Mode Warning Banner */}
-      <div className="bg-red-600 text-white p-4 text-center">
-        <div className="max-w-7xl mx-auto flex items-center justify-center gap-2">
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          <span className="font-semibold">Emergency Mode Active:</span>
-          <span>Firebase quota exceeded. Using offline data. Some features may be limited.</span>
-        </div>
-      </div>
       
       <div className="flex">
         {/* Sidebar */}

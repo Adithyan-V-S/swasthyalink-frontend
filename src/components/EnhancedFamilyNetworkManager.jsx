@@ -434,6 +434,21 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
         </p>
         <div className="flex justify-center space-x-4">
           <Button 
+            onClick={() => {
+              // Trigger the add family member modal from parent component
+              if (window.triggerAddFamilyMember) {
+                window.triggerAddFamilyMember();
+              } else {
+                // Fallback: show alert to go to Family Requests tab
+                alert('Please go to the "Family Requests" tab to add new family members.');
+              }
+            }}
+            variant="primary"
+            leftIcon={<span className="material-icons">person_add</span>}
+          >
+            Add Family Member
+          </Button>
+          <Button 
             onClick={loadFamilyNetwork}
             disabled={loading}
             variant="secondary"
@@ -492,6 +507,22 @@ const EnhancedFamilyNetworkManager = ({ onUpdate, onNavigateToChat }) => {
               Visual
             </button>
           </div>
+          <Button
+            onClick={() => {
+              // Trigger the add family member modal from parent component
+              if (window.triggerAddFamilyMember) {
+                window.triggerAddFamilyMember();
+              } else {
+                // Fallback: show alert to go to Family Requests tab
+                alert('Please go to the "Family Requests" tab to add new family members.');
+              }
+            }}
+            variant="primary"
+            size="small"
+            leftIcon={<span className="material-icons">person_add</span>}
+          >
+            Add Member
+          </Button>
           <Button
             onClick={loadFamilyNetwork}
             disabled={loading}
