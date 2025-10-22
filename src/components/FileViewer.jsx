@@ -279,7 +279,7 @@ const FileViewer = ({ category = null, onFileSelect }) => {
             <div
               key={file.id}
               className={`bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow ${
-                viewMode === 'list' ? 'flex items-center p-4' : 'p-6'
+                viewMode === 'list' ? 'flex items-center p-4' : 'p-10'
               }`}
             >
               {viewMode === 'grid' ? (
@@ -293,7 +293,7 @@ const FileViewer = ({ category = null, onFileSelect }) => {
                         </span>
                       </div>
                       <div className="ml-3">
-                        <h4 className="font-semibold text-gray-900 text-sm truncate max-w-32">
+                        <h4 className="font-semibold text-gray-900 text-sm truncate max-w-48">
                           {file.fileName}
                         </h4>
                         <p className="text-xs text-gray-500">
@@ -314,40 +314,42 @@ const FileViewer = ({ category = null, onFileSelect }) => {
                     <span>{new Date(file.uploadedAt).toLocaleDateString()}</span>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-2 gap-4">
                     <Button
-                      size="small"
+                      size="medium"
                       variant="secondary"
                       onClick={() => handlePreview(file)}
-                      leftIcon={<span className="material-icons text-sm">visibility</span>}
-                      className="flex-1 min-w-0"
+                      leftIcon={<span className="material-icons text-base">visibility</span>}
+                      className="w-full"
                     >
-                      Preview
+                      <span className="font-medium">Preview</span>
                     </Button>
                     <Button
-                      size="small"
+                      size="medium"
                       variant="primary"
                       onClick={() => handleAISummarize(file)}
-                      leftIcon={<span className="material-icons text-sm">psychology</span>}
-                      className="flex-1 min-w-0"
+                      leftIcon={<span className="material-icons text-base">psychology</span>}
+                      className="w-full"
                     >
-                      AI Summarize
+                      <span className="font-medium">AI Summarize</span>
                     </Button>
                     <Button
-                      size="small"
+                      size="medium"
                       variant="secondary"
                       onClick={() => handleDownload(file)}
-                      leftIcon={<span className="material-icons text-sm">download</span>}
+                      leftIcon={<span className="material-icons text-base">download</span>}
+                      className="w-full"
                     >
-                      Download
+                      <span className="font-medium">Download</span>
                     </Button>
                     <Button
-                      size="small"
+                      size="medium"
                       variant="danger"
                       onClick={() => handleDeleteFile(file.id, file.storagePath, file.fileName)}
-                      leftIcon={<span className="material-icons text-sm">delete</span>}
+                      leftIcon={<span className="material-icons text-base">delete</span>}
+                      className="w-full"
                     >
-                      Delete
+                      <span className="font-medium">Delete</span>
                     </Button>
                   </div>
                 </>
@@ -372,38 +374,38 @@ const FileViewer = ({ category = null, onFileSelect }) => {
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-3">
                     <Button
-                      size="small"
+                      size="medium"
                       variant="secondary"
                       onClick={() => handlePreview(file)}
-                      leftIcon={<span className="material-icons text-sm">visibility</span>}
+                      leftIcon={<span className="material-icons text-base">visibility</span>}
                     >
-                      Preview
+                      <span className="font-medium">Preview</span>
                     </Button>
                     <Button
-                      size="small"
+                      size="medium"
                       variant="primary"
                       onClick={() => handleAISummarize(file)}
-                      leftIcon={<span className="material-icons text-sm">psychology</span>}
+                      leftIcon={<span className="material-icons text-base">psychology</span>}
                     >
-                      AI Summarize
+                      <span className="font-medium">AI Summarize</span>
                     </Button>
                     <Button
-                      size="small"
+                      size="medium"
                       variant="secondary"
                       onClick={() => handleDownload(file)}
-                      leftIcon={<span className="material-icons text-sm">download</span>}
+                      leftIcon={<span className="material-icons text-base">download</span>}
                     >
-                      Download
+                      <span className="font-medium">Download</span>
                     </Button>
                     <Button
-                      size="small"
+                      size="medium"
                       variant="danger"
                       onClick={() => handleDeleteFile(file.id, file.storagePath, file.fileName)}
-                      leftIcon={<span className="material-icons text-sm">delete</span>}
+                      leftIcon={<span className="material-icons text-base">delete</span>}
                     >
-                      Delete
+                      <span className="font-medium">Delete</span>
                     </Button>
                   </div>
                 </>

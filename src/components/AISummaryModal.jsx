@@ -104,9 +104,11 @@ const AISummaryModal = ({ isOpen, onClose, summary, loading, error, documentInfo
                     {documentInfo.extractedText && (
                       <div className="md:col-span-2">
                         <span className="text-gray-600">Text Preview:</span>
-                        <p className="mt-1 text-gray-700 bg-white p-2 rounded border text-xs">
-                          {documentInfo.extractedText}
-                        </p>
+                        <div className="mt-2 text-gray-700 bg-white p-4 rounded border text-sm max-h-48 overflow-y-auto">
+                          <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                            {documentInfo.extractedText}
+                          </pre>
+                        </div>
                       </div>
                     )}
                   </div>

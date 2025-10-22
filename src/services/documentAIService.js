@@ -1,8 +1,47 @@
 import Tesseract from 'tesseract.js';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker with multiple fallback options
+const workerUrls = [
+  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`,
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`,
+  `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`,
+  `https://cdn.skypack.dev/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
+];
+
+// Set the first available worker URL
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[0];
+
+// Test worker availability and fallback if needed
+const testWorker = async () => {
+  try {
+    const response = await fetch(workerUrls[0], { method: 'HEAD' });
+    if (!response.ok) {
+      console.warn('Primary worker URL failed, trying alternatives...');
+      for (let i = 1; i < workerUrls.length; i++) {
+        try {
+          const testResponse = await fetch(workerUrls[i], { method: 'HEAD' });
+          if (testResponse.ok) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[i];
+            console.log(`Using worker URL: ${workerUrls[i]}`);
+            return;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      // If all CDNs fail, disable worker completely
+      console.warn('All worker URLs failed, disabling PDF.js worker');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = null;
+    }
+  } catch (error) {
+    console.warn('Worker URL testing failed, disabling worker:', error);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = null;
+  }
+};
+
+// Test worker availability
+testWorker();
 
 /**
  * Extract text from PDF using PDF.js
@@ -13,8 +52,25 @@ export const extractTextFromPDF = async (file) => {
   try {
     console.log('📄 Extracting text from PDF:', file.name);
     
+    // Ensure worker is properly configured
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      console.warn('PDF.js worker not configured, setting fallback...');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+    }
+    
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+    
+    // Configure PDF.js with better error handling
+    const loadingTask = pdfjsLib.getDocument({
+      data: arrayBuffer,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+      disableWorker: pdfjsLib.GlobalWorkerOptions.workerSrc === null, // Disable if no worker
+      verbosity: 0 // Reduce console output
+    });
+    
+    const pdf = await loadingTask.promise;
     
     let fullText = '';
     
@@ -31,7 +87,44 @@ export const extractTextFromPDF = async (file) => {
     return fullText.trim();
   } catch (error) {
     console.error('❌ Error extracting PDF text:', error);
-    throw new Error(`Failed to extract text from PDF: ${error.message}`);
+    
+    // If worker fails, try without worker as fallback
+    if (error.message.includes('worker') || error.message.includes('Failed to fetch dynamically imported module')) {
+      console.log('🔄 Worker failed, trying without worker...');
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({
+          data: arrayBuffer,
+          disableWorker: true, // Disable worker completely
+          useWorkerFetch: false,
+          isEvalSupported: false,
+          useSystemFonts: true,
+          verbosity: 0
+        });
+        
+        const pdf = await loadingTask.promise;
+        let fullText = '';
+        
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map(item => item.str)
+            .join(' ');
+          fullText += pageText + '\n';
+        }
+        
+        console.log('✅ PDF text extracted successfully (without worker)');
+        return fullText.trim();
+      } catch (fallbackError) {
+        console.error('❌ Fallback PDF processing also failed:', fallbackError);
+        throw new Error('PDF processing failed. The document might be corrupted or in an unsupported format.');
+      }
+    } else if (error.message.includes('Invalid PDF')) {
+      throw new Error('The PDF file appears to be corrupted or invalid. Please try a different file.');
+    } else {
+      throw new Error(`Failed to extract text from PDF: ${error.message}`);
+    }
   }
 };
 
@@ -111,7 +204,8 @@ ${truncatedText}
 Please provide a well-structured summary that a patient can easily understand.`;
 
     // Use the existing Gemini API configuration
-    const response = await fetch('/api/gemini', {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://swasthyalink-backend-v2.onrender.com';
+    const response = await fetch(`${API_BASE}/api/gemini`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

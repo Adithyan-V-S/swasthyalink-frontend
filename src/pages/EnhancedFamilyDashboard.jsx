@@ -16,6 +16,9 @@ import FamilyNotificationSystem from "../components/FamilyNotificationSystem";
 import FamilyStatusIndicator from "../components/FamilyStatusIndicator";
 import FileViewer from "../components/FileViewer";
 import FileUpload from "../components/FileUpload";
+import EmergencyLocationModal from "../components/EmergencyLocationModal";
+import EmergencyMapViewer from "../components/EmergencyMapViewer";
+import { subscribeToEmergencyLocations, stopEmergencyLocationSharing } from "../services/locationSharingService";
 // import NotificationManager from "../components/NotificationManager";
 // import NotificationTest from "../components/NotificationTest";
 
@@ -89,6 +92,9 @@ const EnhancedFamilyDashboard = () => {
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
+  const [showEmergencyLocationModal, setShowEmergencyLocationModal] = useState(false);
+  const [showEmergencyMap, setShowEmergencyMap] = useState(false);
+  const [emergencyLocations, setEmergencyLocations] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -200,20 +206,52 @@ const EnhancedFamilyDashboard = () => {
     };
   }, [currentUser]);
 
+  // Subscribe to emergency locations
+  useEffect(() => {
+    if (!currentUser) return;
+
+    console.log('🔔 Setting up emergency location subscription for user:', currentUser.uid);
+    
+    const unsubscribe = subscribeToEmergencyLocations(currentUser.uid, (locations) => {
+      console.log('📍 Emergency locations received:', locations);
+      setEmergencyLocations(locations);
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [currentUser]);
+
   const activateEmergencyAccess = () => {
     setIsEmergencyMode(true);
     const expiryTime = new Date();
     expiryTime.setHours(expiryTime.getHours() + 24);
     setEmergencyAccessExpiry(expiryTime);
     
+    // Show location sharing modal
+    setShowEmergencyLocationModal(true);
+    
     console.log("Emergency access activated for 24 hours");
-    alert("Emergency access activated! You now have access to critical health information.");
   };
 
   const deactivateEmergencyAccess = () => {
     setIsEmergencyMode(false);
     setEmergencyAccessExpiry(null);
     alert("Emergency access deactivated.");
+  };
+
+  const handleEmergencyLocationShared = (result) => {
+    console.log('🚨 Emergency location shared:', result);
+    alert('Emergency location shared with family members!');
+    setShowEmergencyLocationModal(false);
+  };
+
+  const handleShowEmergencyMap = () => {
+    setShowEmergencyMap(true);
+  };
+
+  const handleCloseEmergencyMap = () => {
+    setShowEmergencyMap(false);
   };
 
   const getAccessLevelColor = (level) => {
@@ -731,6 +769,28 @@ const EnhancedFamilyDashboard = () => {
             <FileViewer />
           </div>
         );
+      case 6: // Emergency Location
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">Emergency Locations</h2>
+                <p className="text-gray-600 mt-1">View and manage emergency location sharing</p>
+              </div>
+              <button
+                onClick={handleShowEmergencyMap}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+              >
+                <span className="material-icons text-sm">map</span>
+                <span>View Map</span>
+              </button>
+            </div>
+            <EmergencyMapViewer 
+              emergencyLocations={emergencyLocations} 
+              onClose={handleCloseEmergencyMap}
+            />
+          </div>
+        );
       default:
         return renderOverview();
     }
@@ -771,6 +831,12 @@ const EnhancedFamilyDashboard = () => {
       label: "File Storage",
       icon: <span className="material-icons text-lg">folder</span>,
       description: "Store documents"
+    },
+    {
+      label: "Emergency Location",
+      icon: <span className="material-icons text-lg">emergency</span>,
+      badge: emergencyLocations.length,
+      description: "Emergency locations"
     },
   ];
 
@@ -879,6 +945,14 @@ const EnhancedFamilyDashboard = () => {
           console.log('Files uploaded:', uploadedFiles);
           setShowFileUpload(false);
         }}
+      />
+
+      {/* Emergency Location Modal */}
+      <EmergencyLocationModal
+        isOpen={showEmergencyLocationModal}
+        onClose={() => setShowEmergencyLocationModal(false)}
+        onLocationShared={handleEmergencyLocationShared}
+        userId={currentUser?.uid}
       />
     </main>
   );
