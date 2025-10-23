@@ -1,231 +1,197 @@
-import { VALIDATION, ERROR_MESSAGES } from '../constants';
+// Validation utility functions for form validation
 
-/**
- * Validation utility functions
- */
-
-/**
- * Validates email format
- * @param {string} email - Email to validate
- * @returns {object} - { isValid: boolean, error: string }
- */
+// Email validation
 export const validateEmail = (email) => {
-  if (!email) {
-    return { isValid: false, error: ERROR_MESSAGES.REQUIRED_FIELD };
+  if (!email) return { isValid: false, message: 'Email is required' };
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return { isValid: false, message: 'Please enter a valid email address' };
   }
-  
-  if (!VALIDATION.EMAIL_REGEX.test(email)) {
-    return { isValid: false, error: ERROR_MESSAGES.INVALID_EMAIL };
-  }
-  
-  return { isValid: true, error: null };
+  return { isValid: true, message: '' };
 };
 
-/**
- * Validates password strength
- * @param {string} password - Password to validate
- * @returns {object} - { isValid: boolean, error: string, strength: string }
- */
-export const validatePassword = (password) => {
-  if (!password) {
-    return { isValid: false, error: ERROR_MESSAGES.REQUIRED_FIELD, strength: 'none' };
-  }
-  
-  if (password.length < VALIDATION.PASSWORD_MIN_LENGTH) {
-    return { isValid: false, error: ERROR_MESSAGES.INVALID_PASSWORD, strength: 'weak' };
-  }
-  
-  // Check password strength
-  let strength = 'weak';
-  let score = 0;
-  
-  if (password.length >= 8) score++;
-  if (/[a-z]/.test(password)) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-  
-  if (score >= 4) strength = 'strong';
-  else if (score >= 3) strength = 'medium';
-  
-  return { isValid: true, error: null, strength };
-};
-
-/**
- * Validates name format
- * @param {string} name - Name to validate
- * @returns {object} - { isValid: boolean, error: string }
- */
+// Name validation
 export const validateName = (name) => {
-  if (!name) {
-    return { isValid: false, error: ERROR_MESSAGES.REQUIRED_FIELD };
+  if (!name || name.trim().length === 0) {
+    return { isValid: false, message: 'Name is required' };
   }
-  
-  if (name.length < VALIDATION.NAME_MIN_LENGTH) {
-    return { isValid: false, error: `Name must be at least ${VALIDATION.NAME_MIN_LENGTH} characters long` };
+  if (name.trim().length < 2) {
+    return { isValid: false, message: 'Name must be at least 2 characters long' };
   }
-  
-  if (name.length > VALIDATION.NAME_MAX_LENGTH) {
-    return { isValid: false, error: `Name must be less than ${VALIDATION.NAME_MAX_LENGTH} characters long` };
+  if (name.trim().length > 50) {
+    return { isValid: false, message: 'Name must be less than 50 characters' };
   }
-  
-  return { isValid: true, error: null };
+  if (/^\d+$/.test(name.trim())) {
+    return { isValid: false, message: 'Name should not be purely numeric' };
+  }
+  return { isValid: true, message: '' };
 };
 
-/**
- * Validates phone number format
- * @param {string} phone - Phone number to validate
- * @returns {object} - { isValid: boolean, error: string }
- */
+// Phone number validation
 export const validatePhone = (phone) => {
-  if (!phone) {
-    return { isValid: false, error: ERROR_MESSAGES.REQUIRED_FIELD };
+  if (!phone) return { isValid: true, message: '' }; // Phone is optional
+  const phoneRegex = /^[+]?[\d\s\-\(\)]{10,}$/;
+  if (!phoneRegex.test(phone)) {
+    return { isValid: false, message: 'Please enter a valid phone number' };
   }
-  
-  if (!VALIDATION.PHONE_REGEX.test(phone)) {
-    return { isValid: false, error: 'Please enter a valid phone number' };
-  }
-  
-  return { isValid: true, error: null };
+  return { isValid: true, message: '' };
 };
 
-/**
- * Validates file upload
- * @param {File} file - File to validate
- * @param {Array} allowedTypes - Allowed file types
- * @param {number} maxSize - Maximum file size in bytes
- * @returns {object} - { isValid: boolean, error: string }
- */
-export const validateFile = (file, allowedTypes = [], maxSize = null) => {
-  if (!file) {
-    return { isValid: false, error: ERROR_MESSAGES.REQUIRED_FIELD };
+// Age validation
+export const validateAge = (age) => {
+  if (!age) return { isValid: true, message: '' }; // Age is optional
+  const ageNum = parseInt(age);
+  if (isNaN(ageNum)) {
+    return { isValid: false, message: 'Age must be a valid number' };
   }
-  
-  if (allowedTypes.length > 0 && !allowedTypes.includes(file.type)) {
-    return { isValid: false, error: ERROR_MESSAGES.UNSUPPORTED_FILE_TYPE };
+  if (ageNum < 0 || ageNum > 150) {
+    return { isValid: false, message: 'Age must be between 0 and 150' };
   }
-  
-  if (maxSize && file.size > maxSize) {
-    return { isValid: false, error: ERROR_MESSAGES.FILE_TOO_LARGE };
-  }
-  
-  return { isValid: true, error: null };
+  return { isValid: true, message: '' };
 };
 
-/**
- * Validates form data
- * @param {object} data - Form data to validate
- * @param {object} rules - Validation rules
- * @returns {object} - { isValid: boolean, errors: object }
- */
-export const validateForm = (data, rules) => {
+// Gender validation
+export const validateGender = (gender) => {
+  if (!gender) return { isValid: true, message: '' }; // Gender is optional
+  const validGenders = ['male', 'female', 'other'];
+  if (!validGenders.includes(gender)) {
+    return { isValid: false, message: 'Please select a valid gender' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Blood group validation
+export const validateBloodGroup = (bloodGroup) => {
+  if (!bloodGroup) return { isValid: true, message: '' }; // Blood group is optional
+  const validBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  if (!validBloodGroups.includes(bloodGroup)) {
+    return { isValid: false, message: 'Please select a valid blood group' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Emergency contact validation
+export const validateEmergencyContact = (contact) => {
+  if (!contact) return { isValid: true, message: '' }; // Emergency contact is optional
+  const phoneRegex = /^[+]?[\d\s\-\(\)]{10,}$/;
+  if (!phoneRegex.test(contact)) {
+    return { isValid: false, message: 'Please enter a valid emergency contact number' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Address validation
+export const validateAddress = (address) => {
+  if (!address) return { isValid: true, message: '' }; // Address is optional
+  if (address.trim().length > 200) {
+    return { isValid: false, message: 'Address must be less than 200 characters' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Medical history validation
+export const validateMedicalHistory = (history) => {
+  if (!history) return { isValid: true, message: '' }; // Medical history is optional
+  if (history.trim().length > 1000) {
+    return { isValid: false, message: 'Medical history must be less than 1000 characters' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Password validation
+export const validatePassword = (password) => {
+  if (!password) return { isValid: false, message: 'Password is required' };
+  if (password.length < 8) {
+    return { isValid: false, message: 'Password must be at least 8 characters long' };
+  }
+  if (!/(?=.*[A-Za-z])/.test(password)) {
+    return { isValid: false, message: 'Password must contain at least one letter' };
+  }
+  if (!/(?=.*\d)/.test(password)) {
+    return { isValid: false, message: 'Password must contain at least one number' };
+  }
+  if (!/(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/.test(password)) {
+    return { isValid: false, message: 'Password must contain at least one special character' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Confirm password validation
+export const validateConfirmPassword = (password, confirmPassword) => {
+  if (!confirmPassword) return { isValid: false, message: 'Please confirm your password' };
+  if (password !== confirmPassword) {
+    return { isValid: false, message: 'Passwords do not match' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Validate all profile data
+export const validateProfileData = (profileData) => {
   const errors = {};
   let isValid = true;
-  
-  Object.keys(rules).forEach(field => {
-    const rule = rules[field];
-    const value = data[field];
-    
-    if (rule.required && (!value || value.toString().trim() === '')) {
-      errors[field] = ERROR_MESSAGES.REQUIRED_FIELD;
-      isValid = false;
-      return;
-    }
-    
-    if (value && rule.type) {
-      let validation;
-      
-      switch (rule.type) {
-        case 'email':
-          validation = validateEmail(value);
-          break;
-        case 'password':
-          validation = validatePassword(value);
-          break;
-        case 'name':
-          validation = validateName(value);
-          break;
-        case 'phone':
-          validation = validatePhone(value);
-          break;
-        default:
-          validation = { isValid: true, error: null };
-      }
-      
-      if (!validation.isValid) {
-        errors[field] = validation.error;
-        isValid = false;
-      }
-    }
-    
-    if (value && rule.minLength && value.length < rule.minLength) {
-      errors[field] = `Must be at least ${rule.minLength} characters long`;
-      isValid = false;
-    }
-    
-    if (value && rule.maxLength && value.length > rule.maxLength) {
-      errors[field] = `Must be less than ${rule.maxLength} characters long`;
-      isValid = false;
-    }
-    
-    if (value && rule.pattern && !rule.pattern.test(value)) {
-      errors[field] = rule.message || 'Invalid format';
-      isValid = false;
-    }
-  });
-  
+
+  // Validate name
+  const nameValidation = validateName(profileData.displayName);
+  if (!nameValidation.isValid) {
+    errors.displayName = nameValidation.message;
+    isValid = false;
+  }
+
+  // Validate email
+  const emailValidation = validateEmail(profileData.email);
+  if (!emailValidation.isValid) {
+    errors.email = emailValidation.message;
+    isValid = false;
+  }
+
+  // Validate phone
+  const phoneValidation = validatePhone(profileData.phone);
+  if (!phoneValidation.isValid) {
+    errors.phone = phoneValidation.message;
+    isValid = false;
+  }
+
+  // Validate age
+  const ageValidation = validateAge(profileData.age);
+  if (!ageValidation.isValid) {
+    errors.age = ageValidation.message;
+    isValid = false;
+  }
+
+  // Validate gender
+  const genderValidation = validateGender(profileData.gender);
+  if (!genderValidation.isValid) {
+    errors.gender = genderValidation.message;
+    isValid = false;
+  }
+
+  // Validate blood group
+  const bloodGroupValidation = validateBloodGroup(profileData.bloodGroup);
+  if (!bloodGroupValidation.isValid) {
+    errors.bloodGroup = bloodGroupValidation.message;
+    isValid = false;
+  }
+
+  // Validate emergency contact
+  const emergencyContactValidation = validateEmergencyContact(profileData.emergencyContact);
+  if (!emergencyContactValidation.isValid) {
+    errors.emergencyContact = emergencyContactValidation.message;
+    isValid = false;
+  }
+
+  // Validate address
+  const addressValidation = validateAddress(profileData.address);
+  if (!addressValidation.isValid) {
+    errors.address = addressValidation.message;
+    isValid = false;
+  }
+
+  // Validate medical history
+  const medicalHistoryValidation = validateMedicalHistory(profileData.medicalHistory);
+  if (!medicalHistoryValidation.isValid) {
+    errors.medicalHistory = medicalHistoryValidation.message;
+    isValid = false;
+  }
+
   return { isValid, errors };
-};
-
-/**
- * Sanitizes input to prevent XSS
- * @param {string} input - Input to sanitize
- * @returns {string} - Sanitized input
- */
-export const sanitizeInput = (input) => {
-  if (typeof input !== 'string') return input;
-  
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
-};
-
-/**
- * Validates date format and range
- * @param {string} date - Date string to validate
- * @param {string} format - Expected date format
- * @returns {object} - { isValid: boolean, error: string }
- */
-export const validateDate = (date, format = 'YYYY-MM-DD') => {
-  if (!date) {
-    return { isValid: false, error: ERROR_MESSAGES.REQUIRED_FIELD };
-  }
-  
-  const dateObj = new Date(date);
-  
-  if (isNaN(dateObj.getTime())) {
-    return { isValid: false, error: 'Please enter a valid date' };
-  }
-  
-  // Check if date is not in the future (for birth dates, etc.)
-  if (dateObj > new Date()) {
-    return { isValid: false, error: 'Date cannot be in the future' };
-  }
-  
-  return { isValid: true, error: null };
-};
-
-export default {
-  validateEmail,
-  validatePassword,
-  validateName,
-  validatePhone,
-  validateFile,
-  validateForm,
-  sanitizeInput,
-  validateDate,
 };

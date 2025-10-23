@@ -2,6 +2,20 @@ import React, { useState, useEffect } from "react";
 import { auth } from "../firebaseConfig";
 import { updateProfile, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 import { getUserProfile, updateUserProfile } from "../services/firebaseProfileService";
+import { 
+  validateName, 
+  validateEmail, 
+  validatePhone, 
+  validateAge, 
+  validateGender, 
+  validateBloodGroup, 
+  validateEmergencyContact, 
+  validateAddress, 
+  validateMedicalHistory,
+  validatePassword,
+  validateConfirmPassword,
+  validateProfileData 
+} from "../utils/validation";
 
 const Settings = () => {
   const [user, setUser] = useState(null);
@@ -30,6 +44,10 @@ const Settings = () => {
   });
   const [passwordError, setPasswordError] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
+  
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState({});
+  const [isFormValid, setIsFormValid] = useState(true);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -81,11 +99,70 @@ const Settings = () => {
     }
   };
 
+  // Validation function for individual fields
+  const validateField = (fieldName, value) => {
+    let validation;
+    switch (fieldName) {
+      case 'displayName':
+        validation = validateName(value);
+        break;
+      case 'email':
+        validation = validateEmail(value);
+        break;
+      case 'phone':
+        validation = validatePhone(value);
+        break;
+      case 'age':
+        validation = validateAge(value);
+        break;
+      case 'gender':
+        validation = validateGender(value);
+        break;
+      case 'bloodGroup':
+        validation = validateBloodGroup(value);
+        break;
+      case 'emergencyContact':
+        validation = validateEmergencyContact(value);
+        break;
+      case 'address':
+        validation = validateAddress(value);
+        break;
+      case 'medicalHistory':
+        validation = validateMedicalHistory(value);
+        break;
+      default:
+        return { isValid: true, message: '' };
+    }
+    
+    setValidationErrors(prev => ({
+      ...prev,
+      [fieldName]: validation.isValid ? '' : validation.message
+    }));
+    
+    return validation;
+  };
+
+  // Real-time validation handler
+  const handleFieldChange = (fieldName, value) => {
+    setProfileData(prev => ({ ...prev, [fieldName]: value }));
+    validateField(fieldName, value);
+  };
+
   const handleSave = async () => {
     if (!user) return;
 
+    // Validate all fields before saving
+    const validation = validateProfileData(profileData);
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors);
+      setError('Please fix the validation errors before saving');
+      return;
+    }
+
     setLoading(true);
     setError('');
+    setValidationErrors({});
+    
     try {
       // Update profile in Firebase Auth
       await updateProfile(user, {
@@ -143,15 +220,18 @@ const Settings = () => {
     setPasswordLoading(true);
     setPasswordError('');
 
-    // Validate passwords
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordError('New passwords do not match');
+    // Validate new password
+    const passwordValidation = validatePassword(passwordData.newPassword);
+    if (!passwordValidation.isValid) {
+      setPasswordError(passwordValidation.message);
       setPasswordLoading(false);
       return;
     }
 
-    if (passwordData.newPassword.length < 8) {
-      setPasswordError('New password must be at least 8 characters long');
+    // Validate password confirmation
+    const confirmValidation = validateConfirmPassword(passwordData.newPassword, passwordData.confirmPassword);
+    if (!confirmValidation.isValid) {
+      setPasswordError(confirmValidation.message);
       setPasswordLoading(false);
       return;
     }
@@ -334,11 +414,25 @@ const Settings = () => {
                         <input
                           type="password"
                           value={passwordData.newPassword}
-                          onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                          onChange={(e) => {
+                            const newPassword = e.target.value;
+                            setPasswordData({...passwordData, newPassword});
+                            // Real-time validation
+                            const validation = validatePassword(newPassword);
+                            if (!validation.isValid) {
+                              setPasswordError(validation.message);
+                            } else if (passwordData.confirmPassword && newPassword !== passwordData.confirmPassword) {
+                              setPasswordError('Passwords do not match');
+                            } else {
+                              setPasswordError('');
+                            }
+                          }}
                           className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                            theme === 'dark' 
-                              ? 'bg-gray-600 border-gray-500 text-white' 
-                              : 'bg-white border-gray-300'
+                            passwordError && passwordData.newPassword
+                              ? 'border-red-500 focus:ring-red-400'
+                              : theme === 'dark' 
+                                ? 'bg-gray-600 border-gray-500 text-white' 
+                                : 'bg-white border-gray-300'
                           }`}
                           placeholder="Enter new password (8+ characters)"
                           required
@@ -352,11 +446,23 @@ const Settings = () => {
                         <input
                           type="password"
                           value={passwordData.confirmPassword}
-                          onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                          onChange={(e) => {
+                            const confirmPassword = e.target.value;
+                            setPasswordData({...passwordData, confirmPassword});
+                            // Real-time validation
+                            const validation = validateConfirmPassword(passwordData.newPassword, confirmPassword);
+                            if (!validation.isValid) {
+                              setPasswordError(validation.message);
+                            } else {
+                              setPasswordError('');
+                            }
+                          }}
                           className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                            theme === 'dark' 
-                              ? 'bg-gray-600 border-gray-500 text-white' 
-                              : 'bg-white border-gray-300'
+                            passwordError && passwordData.confirmPassword
+                              ? 'border-red-500 focus:ring-red-400'
+                              : theme === 'dark' 
+                                ? 'bg-gray-600 border-gray-500 text-white' 
+                                : 'bg-white border-gray-300'
                           }`}
                           placeholder="Confirm new password"
                           required
@@ -411,18 +517,24 @@ const Settings = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     <div>
                       <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                        Full Name
+                        Full Name *
                       </label>
                       <input
                         type="text"
                         value={profileData.displayName}
-                        onChange={(e) => setProfileData({...profileData, displayName: e.target.value})}
+                        onChange={(e) => handleFieldChange('displayName', e.target.value)}
                         className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                          theme === 'dark' 
-                            ? 'bg-gray-600 border-gray-500 text-white' 
-                            : 'bg-white border-gray-300'
+                          validationErrors.displayName 
+                            ? 'border-red-500 focus:ring-red-400' 
+                            : theme === 'dark' 
+                              ? 'bg-gray-600 border-gray-500 text-white' 
+                              : 'bg-white border-gray-300'
                         }`}
+                        required
                       />
+                      {validationErrors.displayName && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.displayName}</p>
+                      )}
                     </div>
 
                     <div>
@@ -448,13 +560,19 @@ const Settings = () => {
                       <input
                         type="tel"
                         value={profileData.phone}
-                        onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
+                        onChange={(e) => handleFieldChange('phone', e.target.value)}
                         className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                          theme === 'dark' 
-                            ? 'bg-gray-600 border-gray-500 text-white' 
-                            : 'bg-white border-gray-300'
+                          validationErrors.phone 
+                            ? 'border-red-500 focus:ring-red-400' 
+                            : theme === 'dark' 
+                              ? 'bg-gray-600 border-gray-500 text-white' 
+                              : 'bg-white border-gray-300'
                         }`}
+                        placeholder="Enter phone number"
                       />
+                      {validationErrors.phone && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.phone}</p>
+                      )}
                     </div>
 
                     <div>
@@ -464,13 +582,21 @@ const Settings = () => {
                       <input
                         type="number"
                         value={profileData.age}
-                        onChange={(e) => setProfileData({...profileData, age: e.target.value})}
+                        onChange={(e) => handleFieldChange('age', e.target.value)}
                         className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                          theme === 'dark' 
-                            ? 'bg-gray-600 border-gray-500 text-white' 
-                            : 'bg-white border-gray-300'
+                          validationErrors.age 
+                            ? 'border-red-500 focus:ring-red-400' 
+                            : theme === 'dark' 
+                              ? 'bg-gray-600 border-gray-500 text-white' 
+                              : 'bg-white border-gray-300'
                         }`}
+                        placeholder="Enter age"
+                        min="0"
+                        max="150"
                       />
+                      {validationErrors.age && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.age}</p>
+                      )}
                     </div>
 
                     <div>
@@ -479,11 +605,13 @@ const Settings = () => {
                       </label>
                       <select
                         value={profileData.gender}
-                        onChange={(e) => setProfileData({...profileData, gender: e.target.value})}
+                        onChange={(e) => handleFieldChange('gender', e.target.value)}
                         className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                          theme === 'dark' 
-                            ? 'bg-gray-600 border-gray-500 text-white' 
-                            : 'bg-white border-gray-300'
+                          validationErrors.gender 
+                            ? 'border-red-500 focus:ring-red-400' 
+                            : theme === 'dark' 
+                              ? 'bg-gray-600 border-gray-500 text-white' 
+                              : 'bg-white border-gray-300'
                         }`}
                       >
                         <option value="">Select Gender</option>
@@ -491,6 +619,9 @@ const Settings = () => {
                         <option value="female">Female</option>
                         <option value="other">Other</option>
                       </select>
+                      {validationErrors.gender && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.gender}</p>
+                      )}
                     </div>
 
                     <div>
@@ -499,11 +630,13 @@ const Settings = () => {
                       </label>
                       <select
                         value={profileData.bloodGroup}
-                        onChange={(e) => setProfileData({...profileData, bloodGroup: e.target.value})}
+                        onChange={(e) => handleFieldChange('bloodGroup', e.target.value)}
                         className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                          theme === 'dark' 
-                            ? 'bg-gray-600 border-gray-500 text-white' 
-                            : 'bg-white border-gray-300'
+                          validationErrors.bloodGroup 
+                            ? 'border-red-500 focus:ring-red-400' 
+                            : theme === 'dark' 
+                              ? 'bg-gray-600 border-gray-500 text-white' 
+                              : 'bg-white border-gray-300'
                         }`}
                       >
                         <option value="">Select Blood Group</option>
@@ -516,6 +649,9 @@ const Settings = () => {
                         <option value="O+">O+</option>
                         <option value="O-">O-</option>
                       </select>
+                      {validationErrors.bloodGroup && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.bloodGroup}</p>
+                      )}
                     </div>
 
                     <div>
@@ -525,13 +661,19 @@ const Settings = () => {
                       <input
                         type="tel"
                         value={profileData.emergencyContact}
-                        onChange={(e) => setProfileData({...profileData, emergencyContact: e.target.value})}
+                        onChange={(e) => handleFieldChange('emergencyContact', e.target.value)}
                         className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                          theme === 'dark' 
-                            ? 'bg-gray-600 border-gray-500 text-white' 
-                            : 'bg-white border-gray-300'
+                          validationErrors.emergencyContact 
+                            ? 'border-red-500 focus:ring-red-400' 
+                            : theme === 'dark' 
+                              ? 'bg-gray-600 border-gray-500 text-white' 
+                              : 'bg-white border-gray-300'
                         }`}
+                        placeholder="Enter emergency contact number"
                       />
+                      {validationErrors.emergencyContact && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.emergencyContact}</p>
+                      )}
                     </div>
 
                     <div className="md:col-span-2 xl:col-span-3">
@@ -540,14 +682,21 @@ const Settings = () => {
                       </label>
                       <textarea
                         value={profileData.address}
-                        onChange={(e) => setProfileData({...profileData, address: e.target.value})}
+                        onChange={(e) => handleFieldChange('address', e.target.value)}
                         rows="3"
                         className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                          theme === 'dark' 
-                            ? 'bg-gray-600 border-gray-500 text-white' 
-                            : 'bg-white border-gray-300'
+                          validationErrors.address 
+                            ? 'border-red-500 focus:ring-red-400' 
+                            : theme === 'dark' 
+                              ? 'bg-gray-600 border-gray-500 text-white' 
+                              : 'bg-white border-gray-300'
                         }`}
+                        placeholder="Enter your address"
+                        maxLength="200"
                       />
+                      {validationErrors.address && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.address}</p>
+                      )}
                     </div>
 
                     <div className="md:col-span-2 xl:col-span-3">
@@ -556,25 +705,56 @@ const Settings = () => {
                       </label>
                       <textarea
                         value={profileData.medicalHistory}
-                        onChange={(e) => setProfileData({...profileData, medicalHistory: e.target.value})}
+                        onChange={(e) => handleFieldChange('medicalHistory', e.target.value)}
                         rows="4"
                         placeholder="Any allergies, chronic conditions, or important medical information..."
                         className={`w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-                          theme === 'dark' 
-                            ? 'bg-gray-600 border-gray-500 text-white' 
-                            : 'bg-white border-gray-300'
+                          validationErrors.medicalHistory 
+                            ? 'border-red-500 focus:ring-red-400' 
+                            : theme === 'dark' 
+                              ? 'bg-gray-600 border-gray-500 text-white' 
+                              : 'bg-white border-gray-300'
                         }`}
+                        maxLength="1000"
                       />
+                      {validationErrors.medicalHistory && (
+                        <p className="text-red-500 text-sm mt-1">{validationErrors.medicalHistory}</p>
+                      )}
                     </div>
                   </div>
+
+                  {/* Validation Error Summary */}
+                  {Object.keys(validationErrors).some(key => validationErrors[key]) && (
+                    <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="ml-3">
+                          <h3 className="text-sm font-medium text-red-800">
+                            Please fix the following errors:
+                          </h3>
+                          <div className="mt-2 text-sm text-red-700">
+                            <ul className="list-disc pl-5 space-y-1">
+                              {Object.entries(validationErrors).map(([field, error]) => 
+                                error && <li key={field}>{error}</li>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Save Button */}
                   <div className="mt-8 flex justify-end">
                     <button
-                      onClick={debouncedSave}
-                      disabled={loading}
+                      onClick={handleSave}
+                      disabled={loading || Object.keys(validationErrors).some(key => validationErrors[key])}
                       className={`px-8 py-3 rounded-lg font-semibold text-white transition-all duration-200 ${
-                        loading
+                        loading || Object.keys(validationErrors).some(key => validationErrors[key])
                           ? 'bg-gray-400 cursor-not-allowed'
                           : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-lg transform hover:scale-105'
                       }`}
