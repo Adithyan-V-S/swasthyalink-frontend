@@ -1,47 +1,54 @@
 import Tesseract from 'tesseract.js';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker with multiple fallback options
+// Configure PDF.js worker with improved fallback strategy
 const workerUrls = [
+  `https://cdn.skypack.dev/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`,
   `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`,
-  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`,
-  `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`,
-  `https://cdn.skypack.dev/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
 ];
 
-// Set the first available worker URL
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[0];
+// Set worker source with fallback
+let workerConfigured = false;
 
-// Test worker availability and fallback if needed
-const testWorker = async () => {
+const configureWorker = async () => {
+  if (workerConfigured) return;
+  
   try {
+    // Try the first URL (skypack.dev - most reliable)
     const response = await fetch(workerUrls[0], { method: 'HEAD' });
-    if (!response.ok) {
-      console.warn('Primary worker URL failed, trying alternatives...');
-      for (let i = 1; i < workerUrls.length; i++) {
-        try {
-          const testResponse = await fetch(workerUrls[i], { method: 'HEAD' });
-          if (testResponse.ok) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[i];
-            console.log(`Using worker URL: ${workerUrls[i]}`);
-            return;
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-      // If all CDNs fail, disable worker completely
-      console.warn('All worker URLs failed, disabling PDF.js worker');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = null;
+    if (response.ok) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[0];
+      workerConfigured = true;
+      return;
     }
   } catch (error) {
-    console.warn('Worker URL testing failed, disabling worker:', error);
-    pdfjsLib.GlobalWorkerOptions.workerSrc = null;
+    console.warn('Primary worker URL failed, trying alternatives...');
   }
+
+  // Try alternative URLs
+  for (let i = 1; i < workerUrls.length; i++) {
+    try {
+      const testResponse = await fetch(workerUrls[i], { method: 'HEAD' });
+      if (testResponse.ok) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[i];
+        console.log(`Using worker URL: ${workerUrls[i]}`);
+        workerConfigured = true;
+        return;
+      }
+    } catch (e) {
+      continue;
+    }
+  }
+  
+  // If all CDNs fail, disable worker completely
+  console.warn('All worker URLs failed, disabling PDF.js worker');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = null;
+  workerConfigured = true;
 };
 
-// Test worker availability
-testWorker();
+// Configure worker asynchronously
+configureWorker();
 
 /**
  * Extract text from PDF using PDF.js
@@ -52,10 +59,9 @@ export const extractTextFromPDF = async (file) => {
   try {
     console.log('📄 Extracting text from PDF:', file.name);
     
-    // Ensure worker is properly configured
-    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-      console.warn('PDF.js worker not configured, setting fallback...');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+    // Wait for worker configuration if not done yet
+    if (!workerConfigured) {
+      await configureWorker();
     }
     
     const arrayBuffer = await file.arrayBuffer();

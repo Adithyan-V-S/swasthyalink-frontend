@@ -118,8 +118,8 @@ export const fixStoredDoctors = () => {
   return { fixedCount, totalDoctors: mockDoctors.length };
 };
 
-// Auto-run tests when this module is imported
-if (typeof window !== 'undefined') {
+// Auto-run tests when this module is imported (only in development)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   console.log("🚀 Credential test utility loaded");
   
   // Make functions available globally for debugging

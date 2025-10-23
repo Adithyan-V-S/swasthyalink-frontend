@@ -91,9 +91,9 @@ const Register = () => {
     return !/^\d+$/.test(name);
   };
 
-  // Validate password contains at least one letter and one number and minimum 8 chars
+  // Validate password contains at least one letter, one number, one special character and minimum 8 chars
   const validatePassword = (password) => {
-    return /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
+    return /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])[A-Za-z\d!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]{8,}$/.test(password);
   };
 
   const handleGoogleSignUp = async () => {
@@ -201,7 +201,7 @@ const Register = () => {
       setValidation((v) => ({ ...v, email: validateEmail(value) ? '' : 'Please enter a valid email address.' }));
     }
     if (name === 'password') {
-      setValidation((v) => ({ ...v, password: validatePassword(value) ? '' : 'Password must be at least 8 characters and include both letters and numbers.' }));
+      setValidation((v) => ({ ...v, password: validatePassword(value) ? '' : 'Password must be at least 8 characters and include letters, numbers, and special characters.' }));
       // Also check confirm
       setValidation((v) => ({ ...v, confirm: form.confirm && value !== form.confirm ? 'Passwords do not match.' : '' }));
     }
@@ -223,7 +223,7 @@ const Register = () => {
 
     // Validate password
     if (!validatePassword(form.password)) {
-      setValidation((v) => ({ ...v, password: 'Password must be at least 8 characters and include both letters and numbers.' }));
+      setValidation((v) => ({ ...v, password: 'Password must be at least 8 characters and include letters, numbers, and special characters.' }));
       return;
     }
 
@@ -263,7 +263,31 @@ const Register = () => {
 
     } catch (error) {
       console.error("An error occurred during registration:", error);
-      setError("Registration failed: " + error.message);
+      
+      // Handle specific error codes with user-friendly messages
+      let errorMessage = "Registration failed. Please try again.";
+      
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'This email is already registered. Please use a different email or try logging in.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Please enter a valid email address.';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Password is too weak. Please use a stronger password.';
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Email/password registration is not enabled. Please contact support.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many registration attempts. Please try again later.';
+          break;
+        default:
+          errorMessage = error.message || "Registration failed. Please try again.";
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -457,7 +481,7 @@ const Register = () => {
                   value={form.password}
                   onChange={handleChange}
                   className="w-full h-12 px-4 pr-10 rounded-xl bg-gray-50 border-0 ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-400"
-                  placeholder="Enter your password"
+                  placeholder="Enter password (8+ chars, letters, numbers, special chars)"
                   required
                 />
                 <button

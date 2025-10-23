@@ -200,7 +200,8 @@ class AuthService {
       switch (error.code) {
         case 'auth/user-not-found':
         case 'auth/wrong-password':
-          errorMessage = 'Invalid email or password. Please try again.';
+        case 'auth/invalid-credential':
+          errorMessage = 'Invalid email or password. Please check your credentials and try again.';
           break;
         case 'auth/invalid-email':
           errorMessage = 'Please enter a valid email address.';

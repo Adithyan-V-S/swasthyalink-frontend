@@ -29,9 +29,11 @@ const Login = () => {
       setMessage(location.state.message);
     }
 
-    // Run credential tests on page load
-    console.log("🧪 Running credential tests...");
-    testCredentialGeneration();
+    // Run credential tests on page load (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log("🧪 Running credential tests...");
+      testCredentialGeneration();
+    }
   }, [location]);
 
   // Listen for localStorage changes to update the credentials display
@@ -610,12 +612,28 @@ const Login = () => {
     } catch (err) {
       console.error("Login error:", err);
 
-      // Provide helpful error message for invalid credentials
-      if (err.message && err.message.includes('auth/invalid-credential')) {
-        setError("Invalid email or password. Please try the test credentials below or contact support.");
+      // Provide helpful error messages for different authentication errors
+      let errorMessage = "Login failed. Please try again.";
+      
+      if (err.code === 'auth/invalid-credential') {
+        errorMessage = "Invalid email or password. Please check your credentials and try again.";
+      } else if (err.code === 'auth/user-not-found') {
+        errorMessage = "No account found with this email address. Please check your email or create a new account.";
+      } else if (err.code === 'auth/wrong-password') {
+        errorMessage = "Incorrect password. Please try again or use 'Forgot Password' to reset.";
+      } else if (err.code === 'auth/invalid-email') {
+        errorMessage = "Please enter a valid email address.";
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMessage = "Too many failed login attempts. Please try again later.";
+      } else if (err.code === 'auth/user-disabled') {
+        errorMessage = "This account has been disabled. Please contact support.";
+      } else if (err.message && err.message.includes('auth/invalid-credential')) {
+        errorMessage = "Invalid email or password. Please check your credentials and try again.";
       } else {
-        setError(err.message || ERROR_MESSAGES.AUTHENTICATION_FAILED);
+        errorMessage = err.message || ERROR_MESSAGES.AUTHENTICATION_FAILED;
       }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

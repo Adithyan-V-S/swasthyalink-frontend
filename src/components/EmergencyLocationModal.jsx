@@ -254,3 +254,4 @@ const EmergencyLocationModal = ({ isOpen, onClose, onLocationShared, userId }) =
 };
 
 export default EmergencyLocationModal;
+

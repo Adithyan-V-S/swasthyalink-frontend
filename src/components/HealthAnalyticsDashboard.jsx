@@ -20,6 +20,7 @@ const HealthAnalyticsDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('assessment');
+  const [validationErrors, setValidationErrors] = useState({});
 
   // Load user's health data from profile or local storage
   useEffect(() => {
@@ -32,11 +33,114 @@ const HealthAnalyticsDashboard = () => {
     loadHealthData();
   }, []);
 
+  // Validation functions
+  const validateAge = (age) => {
+    const numAge = parseInt(age);
+    if (!age) return 'Age is required';
+    if (isNaN(numAge)) return 'Age must be a number';
+    if (numAge < 1 || numAge > 120) return 'Age must be between 1 and 120';
+    return null;
+  };
+
+  const validateGender = (gender) => {
+    if (!gender) return 'Gender is required';
+    return null;
+  };
+
+  const validateBMI = (bmi) => {
+    if (!bmi) return null; // BMI is optional
+    const numBMI = parseFloat(bmi);
+    if (isNaN(numBMI)) return 'BMI must be a number';
+    if (numBMI < 10 || numBMI > 50) return 'BMI must be between 10 and 50';
+    return null;
+  };
+
+  const validateBloodPressure = (systolic, diastolic) => {
+    const errors = {};
+    if (systolic) {
+      const numSystolic = parseInt(systolic);
+      if (isNaN(numSystolic)) {
+        errors.systolic = 'Systolic pressure must be a number';
+      } else if (numSystolic < 80 || numSystolic > 250) {
+        errors.systolic = 'Systolic pressure must be between 80 and 250';
+      }
+    }
+    if (diastolic) {
+      const numDiastolic = parseInt(diastolic);
+      if (isNaN(numDiastolic)) {
+        errors.diastolic = 'Diastolic pressure must be a number';
+      } else if (numDiastolic < 50 || numDiastolic > 150) {
+        errors.diastolic = 'Diastolic pressure must be between 50 and 150';
+      }
+    }
+    if (systolic && diastolic) {
+      const numSystolic = parseInt(systolic);
+      const numDiastolic = parseInt(diastolic);
+      if (!isNaN(numSystolic) && !isNaN(numDiastolic) && numSystolic <= numDiastolic) {
+        errors.systolic = 'Systolic pressure must be higher than diastolic';
+      }
+    }
+    return errors;
+  };
+
+  const validateCholesterol = (cholesterol) => {
+    if (!cholesterol) return null; // Cholesterol is optional
+    const numCholesterol = parseInt(cholesterol);
+    if (isNaN(numCholesterol)) return 'Cholesterol must be a number';
+    if (numCholesterol < 100 || numCholesterol > 400) return 'Cholesterol must be between 100 and 400';
+    return null;
+  };
+
+  const validateGlucose = (glucose) => {
+    if (!glucose) return null; // Glucose is optional
+    const numGlucose = parseInt(glucose);
+    if (isNaN(numGlucose)) return 'Glucose must be a number';
+    if (numGlucose < 50 || numGlucose > 300) return 'Glucose must be between 50 and 300';
+    return null;
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    // Validate required fields
+    const ageError = validateAge(healthData.age);
+    if (ageError) errors.age = ageError;
+    
+    const genderError = validateGender(healthData.gender);
+    if (genderError) errors.gender = genderError;
+    
+    // Validate optional fields
+    const bmiError = validateBMI(healthData.bmi);
+    if (bmiError) errors.bmi = bmiError;
+    
+    const cholesterolError = validateCholesterol(healthData.cholesterol);
+    if (cholesterolError) errors.cholesterol = cholesterolError;
+    
+    const glucoseError = validateGlucose(healthData.glucose);
+    if (glucoseError) errors.glucose = glucoseError;
+    
+    // Validate blood pressure
+    const bpErrors = validateBloodPressure(healthData.bloodPressure.systolic, healthData.bloodPressure.diastolic);
+    if (bpErrors.systolic) errors.systolic = bpErrors.systolic;
+    if (bpErrors.diastolic) errors.diastolic = bpErrors.diastolic;
+    
+    return errors;
+  };
+
   const handleInputChange = (field, value) => {
     setHealthData(prev => ({
       ...prev,
       [field]: value
     }));
+
+    // Clear validation error for this field
+    if (validationErrors[field]) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
   };
 
   const handleBloodPressureChange = (type, value) => {
@@ -47,6 +151,15 @@ const HealthAnalyticsDashboard = () => {
         [type]: value
       }
     }));
+
+    // Clear validation errors for blood pressure fields
+    if (validationErrors[type]) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[type];
+        return newErrors;
+      });
+    }
   };
 
   const calculateHealthRisk = async () => {
@@ -54,13 +167,16 @@ const HealthAnalyticsDashboard = () => {
     setError(null);
 
     try {
-      // Validate required fields
-      const requiredFields = ['age', 'gender'];
-      const missingFields = requiredFields.filter(field => !healthData[field]);
-
-      if (missingFields.length > 0) {
-        throw new Error(`Please fill in required fields: ${missingFields.join(', ')}`);
+      // Validate form
+      const errors = validateForm();
+      if (Object.keys(errors).length > 0) {
+        setValidationErrors(errors);
+        setError('Please fix the validation errors before proceeding');
+        return;
       }
+
+      // Clear any previous validation errors
+      setValidationErrors({});
 
       // Save data to localStorage
       localStorage.setItem('healthData', JSON.stringify(healthData));
@@ -88,6 +204,7 @@ const HealthAnalyticsDashboard = () => {
     });
     setRiskAssessment(null);
     setError(null);
+    setValidationErrors({});
     localStorage.removeItem('healthData');
   };
 
@@ -156,11 +273,18 @@ const HealthAnalyticsDashboard = () => {
                       type="number"
                       value={healthData.age}
                       onChange={(e) => handleInputChange('age', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.age 
+                          ? 'border-red-300 focus:ring-red-500' 
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                       placeholder="Enter your age"
                       min="1"
                       max="120"
                     />
+                    {validationErrors.age && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.age}</p>
+                    )}
                   </div>
 
                   <div>
@@ -170,13 +294,20 @@ const HealthAnalyticsDashboard = () => {
                     <select
                       value={healthData.gender}
                       onChange={(e) => handleInputChange('gender', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.gender 
+                          ? 'border-red-300 focus:ring-red-500' 
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                     >
                       <option value="">Select gender</option>
                       <option value="male">Male</option>
                       <option value="female">Female</option>
                       <option value="other">Other</option>
                     </select>
+                    {validationErrors.gender && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.gender}</p>
+                    )}
                   </div>
 
                   <div>
@@ -187,12 +318,19 @@ const HealthAnalyticsDashboard = () => {
                       type="number"
                       value={healthData.bmi}
                       onChange={(e) => handleInputChange('bmi', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.bmi 
+                          ? 'border-red-300 focus:ring-red-500' 
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                       placeholder="e.g., 24.5"
                       step="0.1"
                       min="10"
                       max="50"
                     />
+                    {validationErrors.bmi && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.bmi}</p>
+                    )}
                   </div>
                 </div>
 
@@ -205,25 +343,43 @@ const HealthAnalyticsDashboard = () => {
                       Blood Pressure (mmHg)
                     </label>
                     <div className="flex space-x-2">
-                      <input
-                        type="number"
-                        value={healthData.bloodPressure.systolic}
-                        onChange={(e) => handleBloodPressureChange('systolic', e.target.value)}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Systolic"
-                        min="80"
-                        max="250"
-                      />
+                      <div className="flex-1">
+                        <input
+                          type="number"
+                          value={healthData.bloodPressure.systolic}
+                          onChange={(e) => handleBloodPressureChange('systolic', e.target.value)}
+                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                            validationErrors.systolic 
+                              ? 'border-red-300 focus:ring-red-500' 
+                              : 'border-gray-300 focus:ring-blue-500'
+                          }`}
+                          placeholder="Systolic"
+                          min="80"
+                          max="250"
+                        />
+                        {validationErrors.systolic && (
+                          <p className="mt-1 text-xs text-red-600">{validationErrors.systolic}</p>
+                        )}
+                      </div>
                       <span className="flex items-center text-gray-500">/</span>
-                      <input
-                        type="number"
-                        value={healthData.bloodPressure.diastolic}
-                        onChange={(e) => handleBloodPressureChange('diastolic', e.target.value)}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Diastolic"
-                        min="50"
-                        max="150"
-                      />
+                      <div className="flex-1">
+                        <input
+                          type="number"
+                          value={healthData.bloodPressure.diastolic}
+                          onChange={(e) => handleBloodPressureChange('diastolic', e.target.value)}
+                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                            validationErrors.diastolic 
+                              ? 'border-red-300 focus:ring-red-500' 
+                              : 'border-gray-300 focus:ring-blue-500'
+                          }`}
+                          placeholder="Diastolic"
+                          min="50"
+                          max="150"
+                        />
+                        {validationErrors.diastolic && (
+                          <p className="mt-1 text-xs text-red-600">{validationErrors.diastolic}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -235,11 +391,18 @@ const HealthAnalyticsDashboard = () => {
                       type="number"
                       value={healthData.cholesterol}
                       onChange={(e) => handleInputChange('cholesterol', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.cholesterol 
+                          ? 'border-red-300 focus:ring-red-500' 
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                       placeholder="Total cholesterol"
                       min="100"
                       max="400"
                     />
+                    {validationErrors.cholesterol && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.cholesterol}</p>
+                    )}
                   </div>
 
                   <div>
@@ -250,11 +413,18 @@ const HealthAnalyticsDashboard = () => {
                       type="number"
                       value={healthData.glucose}
                       onChange={(e) => handleInputChange('glucose', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        validationErrors.glucose 
+                          ? 'border-red-300 focus:ring-red-500' 
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                       placeholder="Fasting glucose"
                       min="50"
                       max="300"
                     />
+                    {validationErrors.glucose && (
+                      <p className="mt-1 text-sm text-red-600">{validationErrors.glucose}</p>
+                    )}
                   </div>
                 </div>
 

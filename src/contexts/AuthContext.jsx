@@ -48,6 +48,8 @@ export const AuthProvider = ({ children }) => {
     }
 
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      console.log("AuthContext: Auth state changed, user:", user ? "authenticated" : "not authenticated");
+      
       if (user) {
         setCurrentUser(user);
 
@@ -70,8 +72,6 @@ export const AuthProvider = ({ children }) => {
           if (userDoc.exists()) {
             const userData = userDoc.data();
             console.log("AuthContext: User data from Firestore:", userData);
-            console.log("AuthContext: User name from Firestore:", userData.name);
-            console.log("AuthContext: Complete userData object:", JSON.stringify(userData, null, 2));
             setUserData(userData); // Store the Firestore user data
             setUserRole(userData.role || "patient");
             console.log("AuthContext: User role set to:", userData.role);
