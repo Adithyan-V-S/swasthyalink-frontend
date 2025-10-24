@@ -5,6 +5,20 @@ import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, setDoc } from "
 import { useAuth } from "../contexts/AuthContext";
 import { signInAnonymously, onAuthStateChanged, createUserWithEmailAndPassword } from "firebase/auth";
 import UserDetailsModal from "../components/UserDetailsModal";
+import { 
+  validateDoctorData, 
+  validateStaffData, 
+  validatePharmacyData,
+  validateName,
+  validateEmail,
+  validatePhone,
+  validateSpecialization,
+  validateLicense,
+  validateRole,
+  validateQuantity,
+  validatePrice,
+  validateCategory
+} from "../utils/validation";
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -41,6 +55,10 @@ const AdminDashboard = () => {
   // User details modal state
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState({});
+  const [isFormValid, setIsFormValid] = useState(false);
   
   const navigate = useNavigate();
   const { logout, setPresetAdmin: setAuthPresetAdmin } = useAuth();
@@ -370,6 +388,83 @@ const AdminDashboard = () => {
     fetchData();
   };
 
+  // Validation functions
+  const validateField = (fieldName, value) => {
+    let validation;
+    switch (fieldName) {
+      case 'name':
+        validation = validateName(value);
+        break;
+      case 'email':
+        validation = validateEmail(value);
+        break;
+      case 'specialization':
+        if (activeTab === 'doctors') {
+          validation = validateSpecialization(value);
+        } else if (activeTab === 'staff') {
+          validation = validateRole(value);
+        } else if (activeTab === 'pharmacy') {
+          validation = validateQuantity(value);
+        }
+        break;
+      case 'license':
+        if (activeTab === 'doctors') {
+          validation = validateLicense(value);
+        } else if (activeTab === 'pharmacy') {
+          validation = validatePrice(value);
+        }
+        break;
+      case 'phone':
+        if (activeTab === 'pharmacy') {
+          validation = validateCategory(value);
+        } else {
+          validation = validatePhone(value);
+        }
+        break;
+      default:
+        validation = { isValid: true, message: '' };
+    }
+    return validation;
+  };
+
+  const handleFieldChange = (fieldName, value) => {
+    // Update form data
+    setFormData(prev => ({ ...prev, [fieldName]: value }));
+    
+    // Validate the field
+    const validation = validateField(fieldName, value);
+    
+    // Update validation errors
+    setValidationErrors(prev => ({
+      ...prev,
+      [fieldName]: validation.isValid ? '' : validation.message
+    }));
+    
+    // Check if form is valid
+    validateForm();
+  };
+
+  const validateForm = () => {
+    let validation;
+    switch (activeTab) {
+      case 'doctors':
+        validation = validateDoctorData(formData);
+        break;
+      case 'staff':
+        validation = validateStaffData(formData);
+        break;
+      case 'pharmacy':
+        validation = validatePharmacyData(formData);
+        break;
+      default:
+        validation = { isValid: true, errors: {} };
+    }
+    
+    setValidationErrors(validation.errors);
+    setIsFormValid(validation.isValid);
+    return validation.isValid;
+  };
+
   // Generate auto credentials
   const generateCredentials = () => {
     const timestamp = Date.now();
@@ -398,8 +493,9 @@ const AdminDashboard = () => {
   const handleAddDoctor = async (e) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.specialization || !formData.license || !formData.phone) {
-      alert('Please fill in all required fields');
+    // Validate form before submission
+    if (!validateForm()) {
+      alert('Please fix all validation errors before submitting');
       return;
     }
 
@@ -600,8 +696,9 @@ const AdminDashboard = () => {
   const handleUpdateDoctor = async (e) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.email || !formData.specialization || !formData.license || !formData.phone) {
-      alert('Please fill in all required fields');
+    // Validate form before submission
+    if (!validateForm()) {
+      alert('Please fix all validation errors before submitting');
       return;
     }
 
@@ -1263,15 +1360,38 @@ const AdminDashboard = () => {
                 {isEditing ? `Edit ${activeTab.slice(0, -1)}` : `Add ${activeTab.slice(0, -1)}`}
               </h3>
               <form onSubmit={handleFormSubmit} className="space-y-6">
+                {/* Validation Error Summary */}
+                {Object.keys(validationErrors).some(key => validationErrors[key]) && (
+                  <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      <h4 className="text-red-400 font-medium">Please fix the following errors:</h4>
+                    </div>
+                    <ul className="text-sm text-red-300 space-y-1">
+                      {Object.entries(validationErrors).map(([field, error]) => 
+                        error ? <li key={field}>• {error}</li> : null
+                      )}
+                    </ul>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Name</label>
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(e) => handleFieldChange('name', e.target.value)}
+                    className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                      validationErrors.name 
+                        ? 'border-red-500 focus:ring-red-500' 
+                        : 'border-gray-600 focus:ring-blue-500'
+                    }`}
                     required
                   />
+                  {validationErrors.name && (
+                    <p className="mt-1 text-sm text-red-400">{validationErrors.name}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
@@ -1279,8 +1399,12 @@ const AdminDashboard = () => {
                     <input
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={(e) => handleFieldChange('email', e.target.value)}
+                      className={`flex-1 bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                        validationErrors.email 
+                          ? 'border-red-500 focus:ring-red-500' 
+                          : 'border-gray-600 focus:ring-blue-500'
+                      }`}
                       placeholder="Enter email or auto-generate"
                     />
                     {activeTab === "doctors" && !isEditing && (
@@ -1293,6 +1417,9 @@ const AdminDashboard = () => {
                       </button>
                     )}
                   </div>
+                  {validationErrors.email && (
+                    <p className="mt-1 text-sm text-red-400">{validationErrors.email}</p>
+                  )}
                 </div>
                 {activeTab === "doctors" && (
                   <div>
@@ -1300,10 +1427,17 @@ const AdminDashboard = () => {
                     <input
                       type="text"
                       value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={(e) => handleFieldChange('password', e.target.value)}
+                      className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                        validationErrors.password 
+                          ? 'border-red-500 focus:ring-red-500' 
+                          : 'border-gray-600 focus:ring-blue-500'
+                      }`}
                       placeholder="Enter password or auto-generate"
                     />
+                    {validationErrors.password && (
+                      <p className="mt-1 text-sm text-red-400">{validationErrors.password}</p>
+                    )}
                   </div>
                 )}
                 {activeTab === "doctors" && (
@@ -1313,20 +1447,34 @@ const AdminDashboard = () => {
                       <input
                         type="text"
                         value={formData.specialization}
-                        onChange={(e) => setFormData({...formData, specialization: e.target.value})}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        onChange={(e) => handleFieldChange('specialization', e.target.value)}
+                        className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                          validationErrors.specialization 
+                            ? 'border-red-500 focus:ring-red-500' 
+                            : 'border-gray-600 focus:ring-blue-500'
+                        }`}
                         required
                       />
+                      {validationErrors.specialization && (
+                        <p className="mt-1 text-sm text-red-400">{validationErrors.specialization}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">License</label>
                       <input
                         type="text"
                         value={formData.license}
-                        onChange={(e) => setFormData({...formData, license: e.target.value})}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        onChange={(e) => handleFieldChange('license', e.target.value)}
+                        className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                          validationErrors.license 
+                            ? 'border-red-500 focus:ring-red-500' 
+                            : 'border-gray-600 focus:ring-blue-500'
+                        }`}
                         required
                       />
+                      {validationErrors.license && (
+                        <p className="mt-1 text-sm text-red-400">{validationErrors.license}</p>
+                      )}
                     </div>
                   </>
                 )}
@@ -1336,11 +1484,18 @@ const AdminDashboard = () => {
                     <input
                       type="text"
                       value={formData.specialization}
-                      onChange={(e) => setFormData({...formData, specialization: e.target.value})}
-                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onChange={(e) => handleFieldChange('specialization', e.target.value)}
+                      className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                        validationErrors.specialization 
+                          ? 'border-red-500 focus:ring-red-500' 
+                          : 'border-gray-600 focus:ring-blue-500'
+                      }`}
                       placeholder="e.g., Nurse, Receptionist"
                       required
                     />
+                    {validationErrors.specialization && (
+                      <p className="mt-1 text-sm text-red-400">{validationErrors.specialization}</p>
+                    )}
                   </div>
                 )}
                 {activeTab === "pharmacy" && (
@@ -1350,10 +1505,17 @@ const AdminDashboard = () => {
                       <input
                         type="number"
                         value={formData.specialization}
-                        onChange={(e) => setFormData({...formData, specialization: e.target.value})}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        onChange={(e) => handleFieldChange('specialization', e.target.value)}
+                        className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                          validationErrors.specialization 
+                            ? 'border-red-500 focus:ring-red-500' 
+                            : 'border-gray-600 focus:ring-blue-500'
+                        }`}
                         required
                       />
+                      {validationErrors.specialization && (
+                        <p className="mt-1 text-sm text-red-400">{validationErrors.specialization}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Price</label>
@@ -1361,34 +1523,57 @@ const AdminDashboard = () => {
                         type="number"
                         step="0.01"
                         value={formData.license}
-                        onChange={(e) => setFormData({...formData, license: e.target.value})}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        onChange={(e) => handleFieldChange('license', e.target.value)}
+                        className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                          validationErrors.license 
+                            ? 'border-red-500 focus:ring-red-500' 
+                            : 'border-gray-600 focus:ring-blue-500'
+                        }`}
                         required
                       />
+                      {validationErrors.license && (
+                        <p className="mt-1 text-sm text-red-400">{validationErrors.license}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
                       <input
                         type="text"
                         value={formData.phone}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        onChange={(e) => handleFieldChange('phone', e.target.value)}
+                        className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                          validationErrors.phone 
+                            ? 'border-red-500 focus:ring-red-500' 
+                            : 'border-gray-600 focus:ring-blue-500'
+                        }`}
                         placeholder="e.g., Antibiotics, Painkillers"
                         required
                       />
+                      {validationErrors.phone && (
+                        <p className="mt-1 text-sm text-red-400">{validationErrors.phone}</p>
+                      )}
                     </div>
                   </>
                 )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+                {activeTab !== "pharmacy" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => handleFieldChange('phone', e.target.value)}
+                      className={`w-full bg-gray-700 border rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                        validationErrors.phone 
+                          ? 'border-red-500 focus:ring-red-500' 
+                          : 'border-gray-600 focus:ring-blue-500'
+                      }`}
+                      required
+                    />
+                    {validationErrors.phone && (
+                      <p className="mt-1 text-sm text-red-400">{validationErrors.phone}</p>
+                    )}
+                  </div>
+                )}
                 <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
@@ -1404,6 +1589,8 @@ const AdminDashboard = () => {
                         license: "",
                         phone: ""
                       });
+                      setValidationErrors({});
+                      setIsFormValid(false);
                     }}
                     className="bg-gray-600 text-gray-300 px-6 py-3 rounded-lg hover:bg-gray-500 transition-colors"
                   >
@@ -1411,9 +1598,14 @@ const AdminDashboard = () => {
                   </button>
                   <button
                     type="submit"
-                    className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                    disabled={!isFormValid || loading}
+                    className={`px-6 py-3 rounded-lg transition-colors ${
+                      !isFormValid || loading
+                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
                   >
-                    {isEditing ? 'Update' : 'Add'}
+                    {loading ? 'Processing...' : (isEditing ? 'Update' : 'Add')}
                   </button>
                 </div>
               </form>

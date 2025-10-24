@@ -195,3 +195,228 @@ export const validateProfileData = (profileData) => {
 
   return { isValid, errors };
 };
+
+// Admin Dashboard Validation Functions
+
+// Specialization validation
+export const validateSpecialization = (specialization) => {
+  if (!specialization || specialization.trim().length === 0) {
+    return { isValid: false, message: 'Specialization is required' };
+  }
+  if (specialization.trim().length < 2) {
+    return { isValid: false, message: 'Specialization must be at least 2 characters long' };
+  }
+  if (specialization.trim().length > 50) {
+    return { isValid: false, message: 'Specialization must be less than 50 characters' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// License validation
+export const validateLicense = (license) => {
+  if (!license || license.trim().length === 0) {
+    return { isValid: false, message: 'License number is required' };
+  }
+  if (license.trim().length < 3) {
+    return { isValid: false, message: 'License number must be at least 3 characters long' };
+  }
+  if (license.trim().length > 20) {
+    return { isValid: false, message: 'License number must be less than 20 characters' };
+  }
+  // Check for valid license format (alphanumeric with some special characters)
+  const licenseRegex = /^[A-Za-z0-9\-_]+$/;
+  if (!licenseRegex.test(license.trim())) {
+    return { isValid: false, message: 'License number can only contain letters, numbers, hyphens, and underscores' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Role validation (for staff)
+export const validateRole = (role) => {
+  if (!role || role.trim().length === 0) {
+    return { isValid: false, message: 'Role is required' };
+  }
+  if (role.trim().length < 2) {
+    return { isValid: false, message: 'Role must be at least 2 characters long' };
+  }
+  if (role.trim().length > 30) {
+    return { isValid: false, message: 'Role must be less than 30 characters' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Quantity validation (for pharmacy)
+export const validateQuantity = (quantity) => {
+  if (!quantity || quantity.toString().trim().length === 0) {
+    return { isValid: false, message: 'Quantity is required' };
+  }
+  const quantityNum = parseInt(quantity);
+  if (isNaN(quantityNum)) {
+    return { isValid: false, message: 'Quantity must be a valid number' };
+  }
+  if (quantityNum < 0) {
+    return { isValid: false, message: 'Quantity must be 0 or greater' };
+  }
+  if (quantityNum > 10000) {
+    return { isValid: false, message: 'Quantity must be less than 10,000' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Price validation (for pharmacy)
+export const validatePrice = (price) => {
+  if (!price || price.toString().trim().length === 0) {
+    return { isValid: false, message: 'Price is required' };
+  }
+  const priceNum = parseFloat(price);
+  if (isNaN(priceNum)) {
+    return { isValid: false, message: 'Price must be a valid number' };
+  }
+  if (priceNum < 0) {
+    return { isValid: false, message: 'Price must be 0 or greater' };
+  }
+  if (priceNum > 100000) {
+    return { isValid: false, message: 'Price must be less than $100,000' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Category validation (for pharmacy)
+export const validateCategory = (category) => {
+  if (!category || category.trim().length === 0) {
+    return { isValid: false, message: 'Category is required' };
+  }
+  if (category.trim().length < 2) {
+    return { isValid: false, message: 'Category must be at least 2 characters long' };
+  }
+  if (category.trim().length > 30) {
+    return { isValid: false, message: 'Category must be less than 30 characters' };
+  }
+  return { isValid: true, message: '' };
+};
+
+// Validate doctor form data
+export const validateDoctorData = (formData) => {
+  const errors = {};
+  let isValid = true;
+
+  // Validate name
+  const nameValidation = validateName(formData.name);
+  if (!nameValidation.isValid) {
+    errors.name = nameValidation.message;
+    isValid = false;
+  }
+
+  // Validate email (optional for auto-generation)
+  if (formData.email && formData.email.trim()) {
+    const emailValidation = validateEmail(formData.email);
+    if (!emailValidation.isValid) {
+      errors.email = emailValidation.message;
+      isValid = false;
+    }
+  }
+
+  // Validate password (optional for auto-generation)
+  if (formData.password && formData.password.trim()) {
+    const passwordValidation = validatePassword(formData.password);
+    if (!passwordValidation.isValid) {
+      errors.password = passwordValidation.message;
+      isValid = false;
+    }
+  }
+
+  // Validate specialization
+  const specializationValidation = validateSpecialization(formData.specialization);
+  if (!specializationValidation.isValid) {
+    errors.specialization = specializationValidation.message;
+    isValid = false;
+  }
+
+  // Validate license
+  const licenseValidation = validateLicense(formData.license);
+  if (!licenseValidation.isValid) {
+    errors.license = licenseValidation.message;
+    isValid = false;
+  }
+
+  // Validate phone
+  const phoneValidation = validatePhone(formData.phone);
+  if (!phoneValidation.isValid) {
+    errors.phone = phoneValidation.message;
+    isValid = false;
+  }
+
+  return { isValid, errors };
+};
+
+// Validate staff form data
+export const validateStaffData = (formData) => {
+  const errors = {};
+  let isValid = true;
+
+  // Validate name
+  const nameValidation = validateName(formData.name);
+  if (!nameValidation.isValid) {
+    errors.name = nameValidation.message;
+    isValid = false;
+  }
+
+  // Validate email
+  const emailValidation = validateEmail(formData.email);
+  if (!emailValidation.isValid) {
+    errors.email = emailValidation.message;
+    isValid = false;
+  }
+
+  // Validate role (using specialization field for staff)
+  const roleValidation = validateRole(formData.specialization);
+  if (!roleValidation.isValid) {
+    errors.specialization = roleValidation.message;
+    isValid = false;
+  }
+
+  // Validate phone
+  const phoneValidation = validatePhone(formData.phone);
+  if (!phoneValidation.isValid) {
+    errors.phone = phoneValidation.message;
+    isValid = false;
+  }
+
+  return { isValid, errors };
+};
+
+// Validate pharmacy form data
+export const validatePharmacyData = (formData) => {
+  const errors = {};
+  let isValid = true;
+
+  // Validate name
+  const nameValidation = validateName(formData.name);
+  if (!nameValidation.isValid) {
+    errors.name = nameValidation.message;
+    isValid = false;
+  }
+
+  // Validate quantity (using specialization field for quantity)
+  const quantityValidation = validateQuantity(formData.specialization);
+  if (!quantityValidation.isValid) {
+    errors.specialization = quantityValidation.message;
+    isValid = false;
+  }
+
+  // Validate price (using license field for price)
+  const priceValidation = validatePrice(formData.license);
+  if (!priceValidation.isValid) {
+    errors.license = priceValidation.message;
+    isValid = false;
+  }
+
+  // Validate category (using phone field for category)
+  const categoryValidation = validateCategory(formData.phone);
+  if (!categoryValidation.isValid) {
+    errors.phone = categoryValidation.message;
+    isValid = false;
+  }
+
+  return { isValid, errors };
+};
