@@ -562,7 +562,13 @@ const Register = () => {
                 <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700">✍️</span>
                 <p className="text-sm">Are you a doctor looking to join?</p>
               </div>
-              <button type="button" className="text-indigo-700 hover:text-indigo-900 text-sm font-medium">Click here to apply</button>
+                <button 
+                type="button" 
+                onClick={() => navigate('/login')}
+                className="text-indigo-700 hover:text-indigo-900 text-sm font-medium"
+              >
+                Click here to apply
+              </button>
             </div>
           </div>
         </div>
