@@ -432,8 +432,8 @@ const FamilyChat = () => {
         <div className="flex-1 flex flex-col">
           {selectedConversation ? (
             <>
-              {/* Chat Header */}
-              <div className="p-4 border-b border-gray-200 bg-gray-50">
+              {/* Chat Header - Fixed at top */}
+              <div className="p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0 sticky top-0 z-10">
                 {(() => {
                   const other = getOtherParticipant(selectedConversation, currentUser?.uid);
                   return (
@@ -459,7 +459,7 @@ const FamilyChat = () => {
                 })()}
               </div>
 
-              {/* Messages */}
+              {/* Messages - Scrollable area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {(messages || []).map((message) => {
                   const isMe = message.senderId === currentUser?.uid;
@@ -543,8 +543,8 @@ const FamilyChat = () => {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Message Input */}
-              <div className="p-4 border-t border-gray-200">
+              {/* Message Input - Fixed at bottom */}
+              <div className="p-4 border-t border-gray-200 flex-shrink-0 bg-white">
                 <div className="flex space-x-3">
                   <input
                     ref={inputRef}
