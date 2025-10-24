@@ -289,10 +289,10 @@ const Login = () => {
 
     // Additional test credentials for demo purposes
     const testCredentials = [
-      { email: "test@swasthyakink.com", password: "test123", role: "patient", redirect: "/patientdashboard" },
-      { email: "doctor@swasthyakink.com", password: "doctor123", role: "doctor", redirect: "/doctordashboard" },
-      { email: "family@swasthyakink.com", password: "family123", role: "family", redirect: "/familydashboard" },
-      { email: "doctor1758796374014@swasthyakink.com", password: "Doc374014!", role: "doctor", redirect: "/doctordashboard" },
+      { email: "test@swasthyalink.com", password: "test123", role: "patient", redirect: "/patientdashboard" },
+      { email: "doctor@swasthyalink.com", password: "doctor123", role: "doctor", redirect: "/doctordashboard" },
+      { email: "family@swasthyalink.com", password: "family123", role: "family", redirect: "/familydashboard" },
+      { email: "doctor1758796374014@swasthyalink.com", password: "Doc374014!", role: "doctor", redirect: "/doctordashboard" },
       { email: "doctor1758810279159@swasthyalink.com", password: "Doc279159!", role: "doctor", redirect: "/doctordashboard" }
     ];
 
@@ -365,7 +365,7 @@ const Login = () => {
           id: 'TEST_DOC_1',
           uid: 'TEST_DOC_1',
           name: 'Dr. Test Doctor 1',
-          email: 'doctor1758796374014@swasthyakink.com',
+          email: 'doctor1758796374014@swasthyalink.com',
           password: 'Doc374014!',
           specialization: 'General Medicine',
           license: 'TEST123456',

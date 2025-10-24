@@ -146,7 +146,7 @@ const EmergencyMapViewer = ({ emergencyLocations, onClose }) => {
       </div>
 
       {/* Map Container */}
-      <div className="h-96 relative">
+      <div className="h-80 relative rounded-lg overflow-hidden shadow-lg z-10">
         <MapContainer
           center={emergencyLocations[0]?.location ? [emergencyLocations[0].location.lat, emergencyLocations[0].location.lng] : [0, 0]}
           zoom={13}

@@ -1,54 +1,4 @@
 import Tesseract from 'tesseract.js';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Configure PDF.js worker with improved fallback strategy
-const workerUrls = [
-  `https://cdn.skypack.dev/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`,
-  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`,
-  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
-];
-
-// Set worker source with fallback
-let workerConfigured = false;
-
-const configureWorker = async () => {
-  if (workerConfigured) return;
-  
-  try {
-    // Try the first URL (skypack.dev - most reliable)
-    const response = await fetch(workerUrls[0], { method: 'HEAD' });
-    if (response.ok) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[0];
-      workerConfigured = true;
-      return;
-    }
-  } catch (error) {
-    console.warn('Primary worker URL failed, trying alternatives...');
-  }
-
-  // Try alternative URLs
-  for (let i = 1; i < workerUrls.length; i++) {
-    try {
-      const testResponse = await fetch(workerUrls[i], { method: 'HEAD' });
-      if (testResponse.ok) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[i];
-        console.log(`Using worker URL: ${workerUrls[i]}`);
-        workerConfigured = true;
-        return;
-      }
-    } catch (e) {
-      continue;
-    }
-  }
-  
-  // If all CDNs fail, disable worker completely
-  console.warn('All worker URLs failed, disabling PDF.js worker');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = null;
-  workerConfigured = true;
-};
-
-// Configure worker asynchronously
-configureWorker();
 
 /**
  * Extract text from PDF using PDF.js
@@ -59,77 +9,81 @@ export const extractTextFromPDF = async (file) => {
   try {
     console.log('📄 Extracting text from PDF:', file.name);
     
-    // Wait for worker configuration if not done yet
-    if (!workerConfigured) {
-      await configureWorker();
+    // Convert PDF to text using a more reliable approach
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Check if this is a valid PDF file
+    const pdfHeader = String.fromCharCode(uint8Array[0], uint8Array[1], uint8Array[2], uint8Array[3]);
+    if (pdfHeader !== '%PDF') {
+      throw new Error('Invalid PDF file format');
     }
     
-    const arrayBuffer = await file.arrayBuffer();
+    // Convert the PDF bytes to a string and extract readable text
+    let text = '';
+    let inTextObject = false;
+    let currentText = '';
     
-    // Configure PDF.js with better error handling
-    const loadingTask = pdfjsLib.getDocument({
-      data: arrayBuffer,
-      useWorkerFetch: false,
-      isEvalSupported: false,
-      useSystemFonts: true,
-      disableWorker: pdfjsLib.GlobalWorkerOptions.workerSrc === null, // Disable if no worker
-      verbosity: 0 // Reduce console output
-    });
+    // Simple PDF text extraction by looking for text objects
+    const pdfString = new TextDecoder('utf-8', { ignoreBOM: true }).decode(uint8Array);
+    const lines = pdfString.split('\n');
     
-    const pdf = await loadingTask.promise;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Look for text objects in PDF
+      if (line.includes('BT') || line.includes('Tj') || line.includes('TJ')) {
+        inTextObject = true;
+      }
+      
+      if (inTextObject && line.includes('Tj')) {
+        // Extract text from Tj commands
+        const textMatch = line.match(/\((.*?)\)\s*Tj/);
+        if (textMatch) {
+          currentText += textMatch[1] + ' ';
+        }
+      }
+      
+      if (line.includes('ET') || line.includes('endobj')) {
+        if (currentText.trim()) {
+          text += currentText.trim() + '\n';
+          currentText = '';
+        }
+        inTextObject = false;
+      }
+    }
     
-    let fullText = '';
+    // If no text found using PDF parsing, try a fallback approach
+    if (!text.trim()) {
+      console.log('🔄 PDF parsing found no text, trying fallback approach...');
+      
+      // Extract any readable text from the PDF content
+      const readableText = pdfString
+        .split(/[\x00-\x1F\x7F-\x9F]/) // Remove control characters
+        .filter(line => line.length > 3 && !line.match(/^[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]+$/))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      if (readableText.length > 50) {
+        text = readableText;
+      }
+    }
     
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map(item => item.str)
-        .join(' ');
-      fullText += pageText + '\n';
+    if (!text.trim() || text.length < 10) {
+      throw new Error('Unable to extract meaningful text from PDF. The document might be image-based, password-protected, or corrupted. Please try converting to an image and using the Image Analysis feature.');
     }
     
     console.log('✅ PDF text extracted successfully');
-    return fullText.trim();
+    return text.trim();
   } catch (error) {
     console.error('❌ Error extracting PDF text:', error);
     
-    // If worker fails, try without worker as fallback
-    if (error.message.includes('worker') || error.message.includes('Failed to fetch dynamically imported module')) {
-      console.log('🔄 Worker failed, trying without worker...');
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const loadingTask = pdfjsLib.getDocument({
-          data: arrayBuffer,
-          disableWorker: true, // Disable worker completely
-          useWorkerFetch: false,
-          isEvalSupported: false,
-          useSystemFonts: true,
-          verbosity: 0
-        });
-        
-        const pdf = await loadingTask.promise;
-        let fullText = '';
-        
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items
-            .map(item => item.str)
-            .join(' ');
-          fullText += pageText + '\n';
-        }
-        
-        console.log('✅ PDF text extracted successfully (without worker)');
-        return fullText.trim();
-      } catch (fallbackError) {
-        console.error('❌ Fallback PDF processing also failed:', fallbackError);
-        throw new Error('PDF processing failed. The document might be corrupted or in an unsupported format.');
-      }
-    } else if (error.message.includes('Invalid PDF')) {
-      throw new Error('The PDF file appears to be corrupted or invalid. Please try a different file.');
+    // Provide helpful error message with alternatives
+    if (error.message.includes('Unable to extract')) {
+      throw error; // Re-throw our custom error
     } else {
-      throw new Error(`Failed to extract text from PDF: ${error.message}`);
+      throw new Error('PDF processing failed. Please try: 1) Convert PDF to image and use Image Analysis, 2) Use Symptom Analysis or Notes Analysis for text queries, or 3) Use other analysis tools for specific medical questions.');
     }
   }
 };
@@ -172,7 +126,7 @@ export const extractDocumentText = async (file) => {
              fileName.match(/\.(jpg|jpeg|png|gif|bmp|tiff|webp)$/)) {
     return await extractTextFromImage(file);
   } else {
-    throw new Error('Unsupported file type for text extraction');
+    throw new Error('Unsupported file type for text extraction. Please use PDF or image files (PNG, JPG) or try the other analysis tools.');
   }
 };
 

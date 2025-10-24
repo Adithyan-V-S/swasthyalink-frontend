@@ -42,7 +42,7 @@ export const APP_CONFIG = {
   NAME: 'Swasthyalink',
   VERSION: '1.0.0',
   DESCRIPTION: 'Digital Healthcare Platform',
-  SUPPORT_EMAIL: 'support@swasthyakink.com',
+  SUPPORT_EMAIL: 'support@swasthyalink.com',
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
   SUPPORTED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif'],
   SUPPORTED_DOCUMENT_TYPES: ['application/pdf', 'application/msword'],
@@ -101,10 +101,10 @@ export const LOADING_STATES = {
 
 // Local Storage Keys
 export const STORAGE_KEYS = {
-  USER_PREFERENCES: 'swasthyakink_user_preferences',
-  THEME: 'swasthyakink_theme',
-  LANGUAGE: 'swasthyakink_language',
-  LAST_LOGIN: 'swasthyakink_last_login',
+  USER_PREFERENCES: 'swasthyalink_user_preferences',
+  THEME: 'swasthyalink_theme',
+  LANGUAGE: 'swasthyalink_language',
+  LAST_LOGIN: 'swasthyalink_last_login',
 };
 
 // API Endpoints (for future backend integration)

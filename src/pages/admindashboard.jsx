@@ -4,6 +4,7 @@ import { auth, db } from "../firebaseConfig";
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, setDoc } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 import { signInAnonymously, onAuthStateChanged, createUserWithEmailAndPassword } from "firebase/auth";
+import UserDetailsModal from "../components/UserDetailsModal";
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -36,6 +37,11 @@ const AdminDashboard = () => {
     patientGrowth: 0,
     revenueGrowth: 0
   });
+  
+  // User details modal state
+  const [showUserDetails, setShowUserDetails] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  
   const navigate = useNavigate();
   const { logout, setPresetAdmin: setAuthPresetAdmin } = useAuth();
 
@@ -346,6 +352,22 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error signing out:", error);
     }
+  };
+
+  // Handle user details modal
+  const handleViewUserDetails = (user) => {
+    setSelectedUser(user);
+    setShowUserDetails(true);
+  };
+
+  const handleCloseUserDetails = () => {
+    setShowUserDetails(false);
+    setSelectedUser(null);
+  };
+
+  const handleUserUpdate = () => {
+    // Refresh the users data when a user is updated
+    fetchData();
   };
 
   // Generate auto credentials
@@ -1095,17 +1117,8 @@ const AdminDashboard = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                             <div className="flex space-x-2">
                               <button
-                                onClick={() => {
-                                  if (user.role === 'doctor') {
-                                    setActiveTab('doctors');
-                                  } else if (user.role === 'patient') {
-                                    // Could navigate to patient management if implemented
-                                    alert(`Patient management for ${user.name || user.email} - Feature coming soon!`);
-                                  } else {
-                                    alert(`User details for ${user.name || user.email} - Feature coming soon!`);
-                                  }
-                                }}
-                                className="text-blue-400 hover:text-blue-300 font-medium"
+                                onClick={() => handleViewUserDetails(user)}
+                                className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
                               >
                                 View Details
                               </button>
@@ -1408,6 +1421,14 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* User Details Modal */}
+      <UserDetailsModal
+        user={selectedUser}
+        isOpen={showUserDetails}
+        onClose={handleCloseUserDetails}
+        onUserUpdate={handleUserUpdate}
+      />
     </div>
   );
 };

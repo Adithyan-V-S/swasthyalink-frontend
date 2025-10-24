@@ -7,6 +7,7 @@ import {
   NOTIFICATION_TYPES 
 } from '../services/notificationService';
 import { subscribeToConversations } from '../services/chatService';
+import { getUserProfile } from '../services/firebaseProfileService';
 
 import GeminiChatbot from "../components/GeminiChatbot";
 import UpdatedAddFamilyMember from "../components/UpdatedAddFamilyMember";
@@ -104,6 +105,67 @@ const EnhancedFamilyDashboard = () => {
     emergencyContacts: 0,
     onlineMembers: 0
   });
+  
+  // Real user data state
+  const [userProfile, setUserProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState(null);
+
+  // Fetch user profile data from Firestore
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!currentUser?.uid) {
+        setProfileLoading(false);
+        return;
+      }
+
+      try {
+        setProfileLoading(true);
+        setProfileError(null);
+        
+        console.log('🔍 Fetching user profile for family dashboard:', currentUser.uid);
+        const response = await getUserProfile(currentUser.uid);
+        
+        if (response.success && response.data) {
+          console.log('✅ User profile loaded:', response.data);
+          setUserProfile(response.data);
+        } else {
+          console.log('⚠️ No profile data found, using auth data');
+          // Fallback to auth data
+          setUserProfile({
+            displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+            email: currentUser.email,
+            age: null,
+            bloodGroup: null,
+            phone: null,
+            gender: null,
+            address: null,
+            medicalHistory: null,
+            lastUpdated: new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error fetching user profile:', error);
+        setProfileError(error.message);
+        // Fallback to auth data
+        setUserProfile({
+          displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+          email: currentUser.email,
+          age: null,
+          bloodGroup: null,
+          phone: null,
+          gender: null,
+          address: null,
+          medicalHistory: null,
+          lastUpdated: new Date().toISOString()
+        });
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [currentUser]);
 
   // Check for tab switching from notifications
   useEffect(() => {
@@ -507,24 +569,61 @@ const EnhancedFamilyDashboard = () => {
                 <span className="material-icons mr-2 text-indigo-600">person</span>
                 Basic Information
               </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Name</span>
-                  <span className="font-medium">{mockSharedPatient.name}</span>
+              {profileLoading ? (
+                <div className="space-y-3">
+                  <div className="animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  </div>
+                  <div className="animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  </div>
+                  <div className="animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  </div>
+                  <div className="animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Age</span>
-                  <span className="font-medium">{mockSharedPatient.age} years</span>
+              ) : profileError ? (
+                <div className="text-red-600 text-sm">
+                  <p>Error loading profile data</p>
+                  <p className="text-xs text-gray-500 mt-1">{profileError}</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Blood Group</span>
-                  <span className="font-medium text-red-600">{mockSharedPatient.bloodGroup}</span>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Name</span>
+                    <span className="font-medium">
+                      {userProfile?.displayName || userProfile?.name || 'Not provided'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Age</span>
+                    <span className="font-medium">
+                      {userProfile?.age ? `${userProfile.age} years` : 'Not provided'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Blood Group</span>
+                    <span className="font-medium text-red-600">
+                      {userProfile?.bloodGroup || 'Not provided'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Last Updated</span>
+                    <span className="font-medium text-sm">
+                      {userProfile?.lastUpdated ? 
+                        new Date(userProfile.lastUpdated).toLocaleString() : 
+                        'Not available'
+                      }
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Last Updated</span>
-                  <span className="font-medium text-sm">{mockSharedPatient.lastUpdated}</span>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Health Summary */}
@@ -533,28 +632,55 @@ const EnhancedFamilyDashboard = () => {
                 <span className="material-icons mr-2 text-blue-600">medical_services</span>
                 Health Summary
               </h3>
-              <div className="space-y-3">
-                <div>
-                  <span className="text-gray-600 text-sm">Conditions</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {mockSharedPatient.conditions.map((condition, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-blue-200 text-blue-800 text-xs rounded-full">
-                        {condition}
-                      </span>
-                    ))}
+              {profileLoading ? (
+                <div className="space-y-3">
+                  <div className="animate-pulse">
+                    <div className="h-3 bg-gray-200 rounded w-1/3 mb-2"></div>
+                    <div className="flex gap-1">
+                      <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                      <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                    </div>
+                  </div>
+                  <div className="animate-pulse">
+                    <div className="h-3 bg-gray-200 rounded w-1/4 mb-2"></div>
+                    <div className="flex gap-1">
+                      <div className="h-6 bg-gray-200 rounded-full w-12"></div>
+                      <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <span className="text-gray-600 text-sm">Allergies</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {mockSharedPatient.allergies.map((allergy, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-red-200 text-red-800 text-xs rounded-full">
-                        {allergy}
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-gray-600 text-sm">Medical History</span>
+                    <div className="mt-1">
+                      {userProfile?.medicalHistory ? (
+                        <p className="text-sm text-gray-700 bg-blue-50 p-2 rounded">
+                          {userProfile.medicalHistory}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">No medical history recorded</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 text-sm">Gender</span>
+                    <div className="mt-1">
+                      <span className="px-2 py-1 bg-blue-200 text-blue-800 text-xs rounded-full">
+                        {userProfile?.gender || 'Not specified'}
                       </span>
-                    ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 text-sm">Phone</span>
+                    <div className="mt-1">
+                      <span className="text-sm text-gray-700">
+                        {userProfile?.phone || 'Not provided'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -785,10 +911,12 @@ const EnhancedFamilyDashboard = () => {
                 <span>View Map</span>
               </button>
             </div>
-            <EmergencyMapViewer 
-              emergencyLocations={emergencyLocations} 
-              onClose={handleCloseEmergencyMap}
-            />
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <EmergencyMapViewer 
+                emergencyLocations={emergencyLocations} 
+                onClose={handleCloseEmergencyMap}
+              />
+            </div>
           </div>
         );
       default:
@@ -925,7 +1053,7 @@ const EnhancedFamilyDashboard = () => {
         </aside>
         
         {/* Main content */}
-        <div className="flex-1 p-6 md:p-8">
+        <div className="flex-1 p-6 md:p-8 pt-20">
           {renderMainContent()}
         </div>
       </div>

@@ -8,6 +8,7 @@ import QRScanner from "../components/QRScanner";
 import PrescriptionModal from "../components/PrescriptionModal";
 import PatientProfileModal from "../components/PatientProfileModal";
 import DoctorPrescriptions from "./DoctorPrescriptions";
+import AIMedicalAnalysis from "../components/AIMedicalAnalysis";
 
 const DoctorDashboard = () => {
   const { currentUser, userRole, userData } = useAuth();
@@ -38,6 +39,7 @@ const DoctorDashboard = () => {
   const [selectedPatientForProfile, setSelectedPatientForProfile] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showAIAnalysis, setShowAIAnalysis] = useState(false);
 
   useEffect(() => {
     console.log('Doctor Dashboard: AuthContext currentUser:', currentUser);
@@ -493,6 +495,7 @@ const DoctorDashboard = () => {
                 { id: 'dashboard', name: 'Dashboard', icon: '📊' },
                 { id: 'patients', name: 'Patients', icon: '👥' },
                 { id: 'connect', name: 'Connect Patient', icon: '🔗' },
+                { id: 'ai-analysis', name: 'AI Analysis', icon: '🤖' },
                 { id: 'prescriptions', name: 'Prescriptions', icon: '💊' },
                 { id: 'profile', name: 'Profile', icon: '👤' }
               ].map((tab) => (
@@ -941,6 +944,206 @@ const DoctorDashboard = () => {
           </div>
         )}
 
+        {activeTab === 'ai-analysis' && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl p-6 text-white">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <span className="text-3xl">🤖</span>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">AI Medical Analysis</h2>
+                  <p className="text-purple-100">Advanced AI-powered analysis for medical reports, documents, and patient data</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Analysis Tools Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Document Analysis */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <span className="text-2xl">📄</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Document Analysis</h3>
+                    <p className="text-sm text-gray-600">Analyze medical reports, lab results, and clinical documents</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowAIAnalysis(true)}
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Upload Document
+                </button>
+              </div>
+
+              {/* Image Analysis */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <span className="text-2xl">🖼️</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Image Analysis</h3>
+                    <p className="text-sm text-gray-600">Analyze X-rays, MRI scans, and medical images</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowAIAnalysis(true)}
+                  className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Upload Image
+                </button>
+              </div>
+
+              {/* Symptom Analysis */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-3 bg-purple-100 rounded-lg">
+                    <span className="text-2xl">🔍</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Symptom Analysis</h3>
+                    <p className="text-sm text-gray-600">AI-powered symptom assessment and differential diagnosis</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowAIAnalysis(true)}
+                  className="w-full bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Start Analysis
+                </button>
+              </div>
+
+              {/* Drug Interaction Checker */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-3 bg-red-100 rounded-lg">
+                    <span className="text-2xl">💊</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Drug Interactions</h3>
+                    <p className="text-sm text-gray-600">Check for potential drug interactions and contraindications</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowAIAnalysis(true)}
+                  className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Check Interactions
+                </button>
+              </div>
+
+              {/* Treatment Recommendations */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-3 bg-orange-100 rounded-lg">
+                    <span className="text-2xl">💡</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Treatment Plans</h3>
+                    <p className="text-sm text-gray-600">AI-generated treatment recommendations and protocols</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowAIAnalysis(true)}
+                  className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  Generate Plan
+                </button>
+              </div>
+
+              {/* Clinical Notes Analysis */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-3 bg-indigo-100 rounded-lg">
+                    <span className="text-2xl">📝</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Notes Analysis</h3>
+                    <p className="text-sm text-gray-600">Analyze clinical notes and extract key insights</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowAIAnalysis(true)}
+                  className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Analyze Notes
+                </button>
+              </div>
+            </div>
+
+            {/* Recent Analysis */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-semibold text-gray-900">Recent AI Analysis</h3>
+                <button className="text-blue-600 hover:text-blue-700 font-medium">
+                  View All
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <span className="text-lg">📄</span>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900">Blood Test Report Analysis</h4>
+                    <p className="text-sm text-gray-600">Patient: John Doe • Completed 2 hours ago</p>
+                  </div>
+                  <div className="text-sm text-green-600 font-medium">Completed</div>
+                </div>
+
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <span className="text-lg">🖼️</span>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900">Chest X-Ray Analysis</h4>
+                    <p className="text-sm text-gray-600">Patient: Jane Smith • Completed 1 day ago</p>
+                  </div>
+                  <div className="text-sm text-green-600 font-medium">Completed</div>
+                </div>
+
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <span className="text-lg">🔍</span>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900">Symptom Analysis</h4>
+                    <p className="text-sm text-gray-600">Patient: Mike Johnson • In Progress</p>
+                  </div>
+                  <div className="text-sm text-blue-600 font-medium">Processing</div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Insights */}
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">AI Insights & Recommendations</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white rounded-lg p-4 border border-indigo-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">⚠️</span>
+                    <h4 className="font-medium text-gray-900">Alert</h4>
+                  </div>
+                  <p className="text-sm text-gray-600">3 patients have abnormal lab values requiring immediate attention</p>
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-green-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">💡</span>
+                    <h4 className="font-medium text-gray-900">Suggestion</h4>
+                  </div>
+                  <p className="text-sm text-gray-600">Consider updating treatment protocols for diabetes patients based on latest guidelines</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'prescriptions' && (
           <DoctorPrescriptions />
         )}
@@ -1124,6 +1327,11 @@ const DoctorDashboard = () => {
             setSelectedPatientForProfile(null);
           }}
         />
+
+        {/* AI Medical Analysis Modal */}
+        {showAIAnalysis && (
+          <AIMedicalAnalysis onClose={() => setShowAIAnalysis(false)} />
+        )}
           </div>
         </div>
       </div>

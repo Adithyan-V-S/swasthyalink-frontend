@@ -232,7 +232,7 @@ const EnhancedNotificationCenter = () => {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[450px] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 h-[600px] flex flex-col transform transition-all duration-200 ease-out">
+        <div className="absolute right-0 mt-2 w-[450px] bg-white rounded-xl shadow-2xl border border-gray-200 z-[9999] h-[600px] flex flex-col transform transition-all duration-200 ease-out">
           {/* Header */}
           <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-blue-50">
             <div className="flex items-center justify-between">
